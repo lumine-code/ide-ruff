@@ -1,0 +1,95 @@
+{
+  "name": "ide-ruff",
+  "author": "lumine-code",
+  "description": "Ruff language-server adapter for Python.",
+  "repository": "https://github.com/lumine-code/ide-ruff",
+  "bugs": {
+    "url": "https://github.com/lumine-code/ide-ruff/issues"
+  },
+  "keywords": [
+    "language-server",
+    "lsp",
+    "python",
+    "linter",
+    "formatter",
+    "autofix"
+  ],
+  "version": "1.0.0",
+  "license": "MIT",
+  "engines": {
+    "atom": ">=1.100.0 <2.0.0"
+  },
+  "main": "./lib/main",
+  "scripts": {
+    "test": "cd ../lumine && npm run test:only -- ../ide-ruff/spec",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "consumedServices": {
+    "lumine.languageServer": {
+      "versions": {
+        "^1.0.0": "consumeLanguageServer"
+      }
+    }
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-n": "^18.2.2",
+    "globals": "^17.7.0",
+    "prettier": "^3.9.6"
+  },
+  "configSchema": {
+    "serverPath": {
+      "title": "Server Path",
+      "description": "Absolute path to a `ruff` executable. Leave empty to look it up on PATH.",
+      "type": "string",
+      "default": ""
+    },
+    "configuration": {
+      "title": "Configuration File",
+      "description": "Path to a `ruff.toml` or `pyproject.toml` file to use instead of the one discovered next to the source. Leave empty for the usual discovery.",
+      "type": "string",
+      "default": ""
+    },
+    "lineLength": {
+      "title": "Line Length",
+      "description": "Line length used by the linter and the formatter. Leave at 0 to use the value from the Ruff configuration file.",
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "fixAll": {
+      "title": "Fix All",
+      "description": "Offer a fix-all code action that resolves every fixable violation in the document.",
+      "type": "boolean",
+      "default": true
+    },
+    "organizeImports": {
+      "title": "Organize Imports",
+      "description": "Offer an organize-imports code action driven by Ruff's isort rules.",
+      "type": "boolean",
+      "default": true
+    },
+    "showSyntaxErrors": {
+      "title": "Show Syntax Errors",
+      "description": "Report Python syntax errors found while parsing as diagnostics.",
+      "type": "boolean",
+      "default": true
+    },
+    "disableRuleComment": {
+      "title": "Disable Rule Comment Action",
+      "description": "Offer a code action that appends a `# noqa` comment silencing the violation.",
+      "type": "boolean",
+      "default": true
+    },
+    "fixViolation": {
+      "title": "Fix Violation Action",
+      "description": "Offer a code action that applies the autofix of a single violation.",
+      "type": "boolean",
+      "default": true
+    }
+  }
+}
