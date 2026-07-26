@@ -27,9 +27,9 @@
     "format:check": "prettier --check ."
   },
   "consumedServices": {
-    "lumine.languageServer": {
+    "ide-client": {
       "versions": {
-        "^1.0.0": "consumeLanguageServer"
+        "^1.0.0": "consumeIdeClient"
       }
     }
   },

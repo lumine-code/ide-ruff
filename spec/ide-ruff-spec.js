@@ -17,7 +17,7 @@ const defaults = {
 
 const registerAdapter = () => {
   let adapter;
-  const disposable = main.consumeLanguageServer({
+  const disposable = main.consumeIdeClient({
     registerAdapter(registered) {
       adapter = registered;
       return { dispose() {} };

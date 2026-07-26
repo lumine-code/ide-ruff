@@ -24,7 +24,7 @@ To install `ide-ruff` search for _ide-ruff_ in the Install pane of the Lumine se
 
 ## Services
 
-- **lumine.languageServer** (`^1.0.0`): consumed to register the Ruff adapter with the editor's language-server client.
+- **ide-client** (`^1.0.0`): consumed to register the Ruff adapter with the editor's language-server client.
 
 ## Contributing
 
