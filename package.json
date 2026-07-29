@@ -103,12 +103,6 @@
       "type": "boolean",
       "default": true
     },
-    "allowMagic": {
-      "title": "Allow Magic Commands",
-      "description": "Bypass IPython magic and introspection commands, and recognize `_`, `__`, and `___` as defined names.",
-      "type": "boolean",
-      "default": true
-    },
     "fixAll": {
       "title": "Fix All",
       "description": "Offer a fix-all code action that resolves every fixable violation in the document.",

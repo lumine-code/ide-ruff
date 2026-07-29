@@ -14,7 +14,6 @@ const defaults = {
   fixable: [],
   unfixable: [],
   useNoqa: true,
-  allowMagic: true,
   fixAll: true,
   organizeImports: true,
   showSyntaxErrors: true,
@@ -53,7 +52,6 @@ describe("ide-ruff server resolution", () => {
   it("maps fix policy and IPython names to native-server configuration overrides", () => {
     expect(
       configurationArgs({
-        allowMagic: true,
         fixable: ["F401"],
         unfixable: ["B"],
       }),
@@ -65,7 +63,7 @@ describe("ide-ruff server resolution", () => {
       "--config",
       'builtins = ["_","__","___"]',
     ]);
-    expect(configurationArgs({ allowMagic: false })).toEqual([]);
+    expect(configurationArgs({})).toEqual(["--config", 'builtins = ["_","__","___"]']);
   });
 });
 
@@ -140,6 +138,7 @@ describe("ide-ruff adapter", () => {
     const original = "# ruff: noqa: F401\nimport os  # noqa: F401\n%timeit os.getcwd()\n  value?\n";
     const transformed = adapter.transformDocumentText(original, {
       editor: {
+        getGrammar: () => ({ scopeName: "source.python.ipy" }),
         scopeDescriptorForBufferPosition: () => ({
           getScopesArray: () => ["source.python", "comment.line.number-sign.python"],
         }),
@@ -154,30 +153,37 @@ describe("ide-ruff adapter", () => {
         editor: { getText: () => original },
       }),
     ).toBe(original);
+
+    const pythonSource = "%timeit range(10)\n";
+    expect(
+      adapter.transformDocumentText(pythonSource, {
+        editor: {
+          getGrammar: () => ({ scopeName: "source.python" }),
+          scopeDescriptorForBufferPosition: () => ({
+            getScopesArray: () => ["source.python"],
+          }),
+        },
+      }),
+    ).toBe(pythonSource);
     disposable.dispose();
   });
 });
 
 describe("ide-ruff source transforms", () => {
-  it("leaves text untouched when both compatibility settings are disabled", () => {
+  it("leaves text untouched when no transformation is requested", () => {
     const source = "import os  # noqa: F401\n%timeit os.getcwd()\n";
-    expect(sourceTransform.transform(source, { allowMagic: false, useNoqa: true })).toBe(source);
+    expect(sourceTransform.transform(source, { maskMagic: false, useNoqa: true })).toBe(source);
   });
 
   it("does not hide noqa-shaped text outside a comment scope", () => {
     const source = 'label = "# noqa: F401"\nimport os  # noqa: F401\n';
     const transformed = sourceTransform.transform(source, {
-      allowMagic: false,
+      maskMagic: false,
       useNoqa: false,
       isComment: ([row]) => row === 1,
     });
     expect(transformed).toContain('"# noqa: F401"');
     expect(transformed).not.toContain("import os  # noqa");
-    expect(
-      sourceTransform.restore(transformed, source, {
-        allowMagic: false,
-        useNoqa: false,
-      }),
-    ).toBe(source);
+    expect(sourceTransform.restore(transformed, source)).toBe(source);
   });
 });
