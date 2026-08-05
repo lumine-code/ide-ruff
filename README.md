@@ -22,7 +22,7 @@ To install `ide-ruff` search for _ide-ruff_ in the Install pane of the Lumine se
 
 ## Usage
 
-`ide-ruff` and `linter-ruff` both report Ruff diagnostics, so with both enabled every violation appears twice — keep exactly one of them enabled. Choose `ide-ruff` when you also want formatting, import sorting, and quick fixes over the language-server protocol, kept warm by a long-running server. Choose `linter-ruff` for the lighter option that shells out to the Ruff command line per buffer and adds project-wide scans and Jupyter notebook cell mapping.
+`ide-ruff` and `linter-ruff` both report Ruff diagnostics, and they are meant to be installed together. `linter-ruff` watches for this adapter and reports nothing for the editors it covers, so a violation still appears once; what it keeps is the ground the server does not cover — Jupyter notebooks, whose cells it lints and maps individually, project-wide and tree-view scans, and its own fix and format commands. Nothing has to be configured for that, and neither needs disabling.
 
 ## Services
 
