@@ -3,24 +3,6 @@ const { resolveServer, findOnPath, configurationArgs } = require("../lib/server"
 const main = require("../lib/main");
 const sourceTransform = require("../lib/source-transform");
 
-// The package is not activated in these specs, so its configSchema defaults are
-// not registered; every setting the adapter reads is set explicitly first.
-const defaults = {
-  serverPath: "",
-  configuration: "",
-  lineLength: 0,
-  select: [],
-  ignore: [],
-  fixable: [],
-  unfixable: [],
-  useNoqa: true,
-  fixAll: true,
-  organizeImports: true,
-  showSyntaxErrors: true,
-  disableRuleComment: true,
-  fixViolation: true,
-};
-
 const registerAdapter = () => {
   let adapter;
   const disposable = main.consumeIdeClient({
@@ -68,9 +50,12 @@ describe("ide-ruff server resolution", () => {
 });
 
 describe("ide-ruff adapter", () => {
-  beforeEach(() => {
-    for (const [key, value] of Object.entries(defaults)) atom.config.set(`ide-ruff.${key}`, value);
+  beforeEach(async () => {
+    // Applies the configSchema, so the defaults the adapter reads are the ones
+    // the manifest declares rather than a copy of them kept here.
+    await atom.packages.activatePackage("ide-ruff");
   });
+  afterEach(async () => atom.packages.deactivatePackage("ide-ruff"));
 
   it("registers with the language-server service", () => {
     const { adapter, disposable } = registerAdapter();
@@ -98,16 +83,22 @@ describe("ide-ruff adapter", () => {
     const { adapter, disposable } = registerAdapter();
     atom.config.set("ide-ruff.lineLength", 120);
     atom.config.set("ide-ruff.organizeImports", false);
-    atom.config.set("ide-ruff.disableRuleComment", false);
-    atom.config.set("ide-ruff.select", ["E", "F"]);
-    atom.config.set("ide-ruff.ignore", ["E501"]);
+    atom.config.set("ide-ruff.codeAction.disableRuleComment", false);
+    atom.config.set("ide-ruff.lint.select", ["E", "F"]);
+    atom.config.set("ide-ruff.lint.extendSelect", ["B"]);
+    atom.config.set("ide-ruff.lint.ignore", ["E501"]);
+    atom.config.set("ide-ruff.exclude", ["build"]);
+    atom.config.set("ide-ruff.configurationPreference", "filesystemFirst");
 
     const { ruff } = adapter.getSettings();
     expect(ruff.lineLength).toBe(120);
     expect(ruff.fixAll).toBe(true);
     expect(ruff.organizeImports).toBe(false);
     expect(ruff.showSyntaxErrors).toBe(true);
+    expect(ruff.configurationPreference).toBe("filesystemFirst");
+    expect(ruff.exclude).toEqual(["build"]);
     expect(ruff.lint.select).toEqual(["E", "F"]);
+    expect(ruff.lint.extendSelect).toEqual(["B"]);
     expect(ruff.lint.ignore).toEqual(["E501"]);
     expect(ruff.codeAction.disableRuleComment.enable).toBe(false);
     expect(ruff.codeAction.fixViolation.enable).toBe(true);
@@ -124,12 +115,36 @@ describe("ide-ruff adapter", () => {
     const { ruff } = adapter.getSettings();
     expect(ruff.lineLength).toBeUndefined();
     expect(ruff.configuration).toBeUndefined();
+    expect(ruff.exclude).toBeUndefined();
     expect(ruff.lint.select).toBeUndefined();
+    expect(ruff.lint.extendSelect).toBeUndefined();
     expect(ruff.lint.ignore).toBeUndefined();
 
     atom.config.set("ide-ruff.configuration", "/etc/ruff.toml");
     expect(adapter.getSettings().ruff.configuration).toBe("/etc/ruff.toml");
     disposable.dispose();
+  });
+
+  it("stops the server linting when the diagnostics switch is off", () => {
+    // One control, not two: what the editor would discard is not computed.
+    const { adapter, disposable } = registerAdapter();
+    expect(adapter.getSettings().ruff.lint.enable).toBe(true);
+    atom.config.set("ide-ruff.features.diagnostics", false);
+    expect(adapter.getSettings().ruff.lint.enable).toBe(false);
+    disposable.dispose();
+  });
+
+  it("offers a switch only for what Ruff advertises", () => {
+    // Verified against the server's own initialize response: Ruff is a linter
+    // and a formatter, so there is nothing to switch for completions,
+    // navigation, symbols, inlay hints, code lens or semantic tokens.
+    const { configSchema } = require("../package.json");
+    expect(Object.keys(configSchema.features.properties)).toEqual([
+      "diagnostics",
+      "hover",
+      "format",
+      "codeActions",
+    ]);
   });
 
   it("reversibly hides noqa directives and IPython magic from Ruff", () => {

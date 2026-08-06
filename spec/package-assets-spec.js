@@ -59,16 +59,31 @@ describe("ide-ruff package assets", () => {
   });
 
   it("declares every setting the adapter reads, with no `order` keys", () => {
-    const used = [...read("lib/main.js").matchAll(/setting\("([A-Za-z]+)"\)/g)].map((m) => m[1]);
+    const lookup = (keyPath) =>
+      keyPath
+        .split(".")
+        .reduce(
+          (schema, key) => (schema === pkg.configSchema ? schema : schema?.properties)?.[key],
+          pkg.configSchema,
+        );
+    const used = [...read("lib/main.js").matchAll(/setting\("([A-Za-z.]+)"\)/g)].map((m) => m[1]);
     expect(used.length).toBeGreaterThan(0);
-    for (const key of new Set(used)) expect(pkg.configSchema[key]).toBeDefined();
-    for (const entry of Object.values(pkg.configSchema)) {
-      expect(entry.order).toBeUndefined();
-      // `title`, `description`, `type`, then the rest, with `default` last.
-      const keys = Object.keys(entry);
-      expect(keys.slice(0, 3)).toEqual(["title", "description", "type"]);
-      expect(keys[keys.length - 1]).toBe("default");
+    for (const keyPath of new Set(used))
+      expect(`${keyPath}: ${!!lookup(keyPath)}`).toBe(`${keyPath}: true`);
+
+    const check = (entry, keyPath) => {
+      expect(`${keyPath}: ${entry.order}`).toBe(`${keyPath}: undefined`);
       expect(typeof entry.description).toBe("string");
-    }
+      // `title`, `description`, `type`, then the rest. A leaf ends with its
+      // `default`; a group has none and ends with the settings it holds.
+      const keys = Object.keys(entry);
+      expect(`${keyPath}: ${keys.slice(0, 3)}`).toBe(`${keyPath}: title,description,type`);
+      const last = entry.type === "object" ? "properties" : "default";
+      expect(`${keyPath}: ${keys[keys.length - 1]}`).toBe(`${keyPath}: ${last}`);
+      if (entry.type === "object")
+        for (const [key, nested] of Object.entries(entry.properties))
+          check(nested, `${keyPath}.${key}`);
+    };
+    for (const [key, entry] of Object.entries(pkg.configSchema)) check(entry, key);
   });
 });

@@ -52,11 +52,62 @@
       "type": "string",
       "default": ""
     },
+    "features": {
+      "title": "Features",
+      "description": "Which parts of Ruff the editor uses. Turning one off hands it to the next server serving the same file, which is how you choose between Ruff and another Python server. Only what Ruff implements is listed: it is a linter and a formatter, so it has no completions, navigation or symbols.",
+      "type": "object",
+      "properties": {
+        "diagnostics": {
+          "title": "Diagnostics",
+          "description": "Report Ruff's violations in the linter. Turning this off also stops the server computing them.",
+          "type": "boolean",
+          "default": true
+        },
+        "hover": {
+          "title": "Hover",
+          "description": "Explain the rule behind a noqa code on hover.",
+          "type": "boolean",
+          "default": true
+        },
+        "format": {
+          "title": "Format",
+          "description": "Format documents with Ruff's formatter.",
+          "type": "boolean",
+          "default": true
+        },
+        "codeActions": {
+          "title": "Code Actions",
+          "description": "Offer Ruff's fixes in the intentions list.",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
     "configuration": {
       "title": "Configuration File",
       "description": "Path to a `ruff.toml` or `pyproject.toml` file to use instead of the one discovered next to the source. Leave empty for the usual discovery.",
       "type": "string",
       "default": ""
+    },
+    "configurationPreference": {
+      "title": "Configuration Preference",
+      "description": "Which wins when these settings and a discovered `ruff.toml` or `pyproject.toml` disagree.",
+      "type": "string",
+      "enum": [
+        "editorFirst",
+        "filesystemFirst",
+        "editorOnly"
+      ],
+      "default": "editorFirst"
+    },
+    "exclude": {
+      "title": "Exclude",
+      "description": "File patterns Ruff never looks at, on top of the ones its configuration file excludes.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
     },
     "lineLength": {
       "title": "Line Length",
@@ -64,48 +115,6 @@
       "type": "integer",
       "minimum": 0,
       "default": 0
-    },
-    "select": {
-      "title": "Rule Selection: Select",
-      "description": "Rule codes to enable, or `ALL` to enable every rule. Leave empty to use Ruff configuration files.",
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "default": []
-    },
-    "ignore": {
-      "title": "Rule Selection: Ignore",
-      "description": "Rule codes to disable. Leave empty to use Ruff configuration files.",
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "default": []
-    },
-    "fixable": {
-      "title": "Rule Selection: Fixable",
-      "description": "Rule codes to treat as eligible for autofix. Leave empty to use Ruff configuration files.",
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "default": []
-    },
-    "unfixable": {
-      "title": "Rule Selection: Unfixable",
-      "description": "Rule codes to treat as ineligible for autofix. Leave empty to use Ruff configuration files.",
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "default": []
-    },
-    "useNoqa": {
-      "title": "Use noqa Flag",
-      "description": "Honor `# noqa` and file-level noqa comments when reporting diagnostics.",
-      "type": "boolean",
-      "default": true
     },
     "fixAll": {
       "title": "Fix All",
@@ -125,17 +134,114 @@
       "type": "boolean",
       "default": true
     },
-    "disableRuleComment": {
-      "title": "Disable Rule Comment Action",
-      "description": "Offer a code action that appends a `# noqa` comment silencing the violation.",
+    "useNoqa": {
+      "title": "Use noqa Flag",
+      "description": "Honor `# noqa` and file-level noqa comments when reporting diagnostics.",
       "type": "boolean",
       "default": true
     },
-    "fixViolation": {
-      "title": "Fix Violation Action",
-      "description": "Offer a code action that applies the autofix of a single violation.",
-      "type": "boolean",
-      "default": true
+    "logLevel": {
+      "title": "Log Level",
+      "description": "How much Ruff writes to its log, which `ide-client:show-log` opens.",
+      "type": "string",
+      "enum": [
+        "error",
+        "warn",
+        "info",
+        "debug",
+        "trace"
+      ],
+      "default": "info"
+    },
+    "lint": {
+      "title": "Lint",
+      "description": "Which rules run. Leave the lists empty to use the Ruff configuration files.",
+      "type": "object",
+      "properties": {
+        "preview": {
+          "title": "Preview Rules",
+          "description": "Enable rules and behaviour Ruff still marks as unstable.",
+          "type": "boolean",
+          "default": false
+        },
+        "select": {
+          "title": "Select",
+          "description": "Rule codes to enable, replacing the configured set, or `ALL` for every rule.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "extendSelect": {
+          "title": "Extend Select",
+          "description": "Rule codes to enable on top of the configured set, rather than in place of it.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "ignore": {
+          "title": "Ignore",
+          "description": "Rule codes to disable.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "fixable": {
+          "title": "Fixable",
+          "description": "Rule codes to treat as eligible for autofix.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "unfixable": {
+          "title": "Unfixable",
+          "description": "Rule codes to treat as ineligible for autofix.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    },
+    "format": {
+      "title": "Format",
+      "description": "How Ruff's formatter behaves.",
+      "type": "object",
+      "properties": {
+        "preview": {
+          "title": "Preview Style",
+          "description": "Format with the style changes Ruff still marks as unstable.",
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "codeAction": {
+      "title": "Code Actions",
+      "description": "Which fixes Ruff offers in the intentions list.",
+      "type": "object",
+      "properties": {
+        "disableRuleComment": {
+          "title": "Disable Rule Comment",
+          "description": "Offer a code action that appends a `# noqa` comment silencing the violation.",
+          "type": "boolean",
+          "default": true
+        },
+        "fixViolation": {
+          "title": "Fix Violation",
+          "description": "Offer a code action that applies the autofix of a single violation.",
+          "type": "boolean",
+          "default": true
+        }
+      }
     }
   }
 }
