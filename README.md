@@ -11,6 +11,7 @@ Registers the language server built into [Ruff](https://github.com/astral-sh/ruf
 - **Diagnostics**: reports lint violations as you type, with syntax errors from the parser.
 - **Global lint policy**: selects, extends, ignores, and controls autofix eligibility for Ruff rules from the settings page, with preview rules and the unstable formatter style behind their own switches.
 - **Feature switches**: diagnostics, hover, formatting, and code actions can each be turned off, which hands them to another Python server on the same file. Turning diagnostics off also stops the server computing them.
+- **Settings applied live**: Ruff reads its settings only when it starts, so changing one restarts the server for you rather than leaving the setting inert until the next reload.
 - **Python directives**: honors or bypasses `# noqa` suppressions and automatically masks magic commands in IPython buffers without changing the editor text.
 - **Code actions**: fixes a single violation, fixes every fixable violation, or appends a `# noqa` comment.
 - **Formatting**: formats documents with the Ruff formatter and sorts imports on request.

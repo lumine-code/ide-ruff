@@ -134,6 +134,49 @@ describe("ide-ruff adapter", () => {
     disposable.dispose();
   });
 
+  describe("applying a changed setting", () => {
+    // Ruff's didChangeConfiguration handler is an empty stub upstream, so the
+    // push it receives is discarded and a restart is the only thing that
+    // applies a change. Without one, every setting on the page would look like
+    // it did nothing.
+    const withSession = () => {
+      const restarted = [];
+      let adapter;
+      const session = { state: "running" };
+      const disposable = main.consumeIdeClient({
+        registerAdapter(registered) {
+          adapter = registered;
+          session.adapter = registered;
+          return { dispose() {} };
+        },
+        getSessions: () => [session],
+        restart: async (target) => restarted.push(target),
+      });
+      return { adapter, restarted, disposable };
+    };
+
+    it("restarts the server for a server setting", () => {
+      const { restarted, disposable } = withSession();
+      atom.config.set("ide-ruff.lint.select", ["F401"]);
+      expect(restarted.length).toBe(1);
+      atom.config.set("ide-ruff.lineLength", 100);
+      expect(restarted.length).toBe(2);
+      disposable.dispose();
+    });
+
+    it("leaves it alone for a switch the editor applies itself", () => {
+      const { restarted, disposable } = withSession();
+      atom.config.set("ide-ruff.features.hover", false);
+      atom.config.set("ide-ruff.features.format", false);
+      expect(restarted.length).toBe(0);
+      // Diagnostics are the exception: they also decide whether Ruff lints,
+      // which it reads at startup.
+      atom.config.set("ide-ruff.features.diagnostics", false);
+      expect(restarted.length).toBe(1);
+      disposable.dispose();
+    });
+  });
+
   it("offers a switch only for what Ruff advertises", () => {
     // Verified against the server's own initialize response: Ruff is a linter
     // and a formatter, so there is nothing to switch for completions,
