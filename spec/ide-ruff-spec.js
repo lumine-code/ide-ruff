@@ -53,9 +53,9 @@ describe("ide-ruff adapter", () => {
   beforeEach(async () => {
     // Applies the configSchema, so the defaults the adapter reads are the ones
     // the manifest declares rather than a copy of them kept here.
-    await atom.packages.activatePackage("ide-ruff");
+    await lumine.packages.activatePackage("ide-ruff");
   });
-  afterEach(async () => atom.packages.deactivatePackage("ide-ruff"));
+  afterEach(async () => lumine.packages.deactivatePackage("ide-ruff"));
 
   it("registers with the language-server service", () => {
     const { adapter, disposable } = registerAdapter();
@@ -70,7 +70,7 @@ describe("ide-ruff adapter", () => {
 
   it("launches `ruff server` in the resolution context's root", async () => {
     const { adapter, disposable } = registerAdapter();
-    atom.config.set("ide-ruff.serverPath", process.execPath);
+    lumine.config.set("ide-ruff.serverPath", process.execPath);
     const launch = await adapter.resolveServer({ rootPath: __dirname });
     expect(launch.command).toBe(process.execPath);
     expect(launch.args).toEqual(["server", "--config", 'builtins = ["_","__","___"]']);
@@ -81,14 +81,14 @@ describe("ide-ruff adapter", () => {
 
   it("maps editor settings into the ruff configuration section", () => {
     const { adapter, disposable } = registerAdapter();
-    atom.config.set("ide-ruff.lineLength", 120);
-    atom.config.set("ide-ruff.organizeImports", false);
-    atom.config.set("ide-ruff.codeAction.disableRuleComment", false);
-    atom.config.set("ide-ruff.lint.select", ["E", "F"]);
-    atom.config.set("ide-ruff.lint.extendSelect", ["B"]);
-    atom.config.set("ide-ruff.lint.ignore", ["E501"]);
-    atom.config.set("ide-ruff.exclude", ["build"]);
-    atom.config.set("ide-ruff.configurationPreference", "filesystemFirst");
+    lumine.config.set("ide-ruff.lineLength", 120);
+    lumine.config.set("ide-ruff.organizeImports", false);
+    lumine.config.set("ide-ruff.codeAction.disableRuleComment", false);
+    lumine.config.set("ide-ruff.lint.select", ["E", "F"]);
+    lumine.config.set("ide-ruff.lint.extendSelect", ["B"]);
+    lumine.config.set("ide-ruff.lint.ignore", ["E501"]);
+    lumine.config.set("ide-ruff.exclude", ["build"]);
+    lumine.config.set("ide-ruff.configurationPreference", "filesystemFirst");
 
     const { ruff } = adapter.getSettings();
     expect(ruff.lineLength).toBe(120);
@@ -120,7 +120,7 @@ describe("ide-ruff adapter", () => {
     expect(ruff.lint.extendSelect).toBeUndefined();
     expect(ruff.lint.ignore).toBeUndefined();
 
-    atom.config.set("ide-ruff.configuration", "/etc/ruff.toml");
+    lumine.config.set("ide-ruff.configuration", "/etc/ruff.toml");
     expect(adapter.getSettings().ruff.configuration).toBe("/etc/ruff.toml");
     disposable.dispose();
   });
@@ -129,7 +129,7 @@ describe("ide-ruff adapter", () => {
     // One control, not two: what the editor would discard is not computed.
     const { adapter, disposable } = registerAdapter();
     expect(adapter.getSettings().ruff.lint.enable).toBe(true);
-    atom.config.set("ide-ruff.features.diagnostics", false);
+    lumine.config.set("ide-ruff.features.diagnostics", false);
     expect(adapter.getSettings().ruff.lint.enable).toBe(false);
     disposable.dispose();
   });
@@ -157,21 +157,21 @@ describe("ide-ruff adapter", () => {
 
     it("restarts the server for a server setting", () => {
       const { restarted, disposable } = withSession();
-      atom.config.set("ide-ruff.lint.select", ["F401"]);
+      lumine.config.set("ide-ruff.lint.select", ["F401"]);
       expect(restarted.length).toBe(1);
-      atom.config.set("ide-ruff.lineLength", 100);
+      lumine.config.set("ide-ruff.lineLength", 100);
       expect(restarted.length).toBe(2);
       disposable.dispose();
     });
 
     it("leaves it alone for a switch the editor applies itself", () => {
       const { restarted, disposable } = withSession();
-      atom.config.set("ide-ruff.features.hover", false);
-      atom.config.set("ide-ruff.features.format", false);
+      lumine.config.set("ide-ruff.features.hover", false);
+      lumine.config.set("ide-ruff.features.format", false);
       expect(restarted.length).toBe(0);
       // Diagnostics are the exception: they also decide whether Ruff lints,
       // which it reads at startup.
-      atom.config.set("ide-ruff.features.diagnostics", false);
+      lumine.config.set("ide-ruff.features.diagnostics", false);
       expect(restarted.length).toBe(1);
       disposable.dispose();
     });
@@ -192,7 +192,7 @@ describe("ide-ruff adapter", () => {
 
   it("reversibly hides noqa directives and IPython magic from Ruff", () => {
     const { adapter, disposable } = registerAdapter();
-    atom.config.set("ide-ruff.useNoqa", false);
+    lumine.config.set("ide-ruff.useNoqa", false);
     const original = "# ruff: noqa: F401\nimport os  # noqa: F401\n%timeit os.getcwd()\n  value?\n";
     const transformed = adapter.transformDocumentText(original, {
       editor: {
