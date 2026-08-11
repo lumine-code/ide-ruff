@@ -25,7 +25,7 @@ To install `ide-ruff` search for _ide-ruff_ in the Install pane of the Lumine se
 
 ## Usage
 
-`ide-ruff` and `linter-ruff` both report Ruff diagnostics, and they are meant to be installed together. `linter-ruff` watches for this adapter and reports nothing for the editors it covers, so a violation still appears once; what it keeps is the ground the server does not cover — Jupyter notebooks, whose cells it lints and maps individually, project-wide and tree-view scans, and its own fix and format commands. Nothing has to be configured for that, and neither needs disabling.
+`ide-ruff` and `linter-ruff` both report Ruff diagnostics, and they are meant to be installed together. `linter-ruff` watches for this adapter and reports nothing for editors where its diagnostics feature is enabled, so a violation still appears once; what it keeps is the ground the server does not cover — Jupyter notebooks, whose cells it lints and maps individually, project-wide and tree-view scans, and its own fix and format commands. Turning adapter diagnostics off immediately hands those open editors back to `linter-ruff`.
 
 ## Services
 
