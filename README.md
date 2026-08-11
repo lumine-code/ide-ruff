@@ -6,7 +6,8 @@ Registers the language server built into [Ruff](https://github.com/astral-sh/ruf
 
 ## Features
 
-- **PATH discovery**: finds `ruff` on your PATH, or uses the Server Path setting.
+- **Server discovery**: uses the Server Path setting, a copy the editor installed for you, or `ruff` on your PATH, in that order.
+- **Managed install**: downloads ruff from its GitHub releases and keeps it current, verifying each download against the published checksum.
 - **Python and IPython**: serves the Python grammar and its IPython dialect.
 - **Diagnostics**: reports lint violations as you type, with syntax errors from the parser.
 - **Global lint policy**: selects, extends, ignores, and controls autofix eligibility for Ruff rules from the settings page, with preview rules and the unstable formatter style behind their own switches.

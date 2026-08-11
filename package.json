@@ -48,7 +48,7 @@
   "configSchema": {
     "serverPath": {
       "title": "Server Path",
-      "description": "Absolute path to a `ruff` executable. Leave empty to look it up on PATH.",
+      "description": "Absolute path to a `ruff` executable. Leave empty to use the copy the editor installed, or the one on PATH.",
       "type": "string",
       "default": ""
     },

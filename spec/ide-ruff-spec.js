@@ -1,5 +1,5 @@
 const path = require("path");
-const { resolveServer, findOnPath, configurationArgs } = require("../lib/server");
+const { resolveServer, findOnPath, configurationArgs, assetFor } = require("../lib/server");
 const main = require("../lib/main");
 const sourceTransform = require("../lib/source-transform");
 
@@ -30,6 +30,30 @@ describe("ide-ruff server resolution", () => {
   it("resolves to null when ruff is nowhere on PATH", async () => {
     spyOn(require("../lib/server"), "findOnPath").and.returnValue(null);
     expect(await resolveServer("")).toBeNull();
+  });
+  it("prefers a managed install over PATH, and the configured path over both", async () => {
+    const managed = { binaryPath: "/managed/ruff", version: "0.16.1" };
+    const launch = await resolveServer("", managed);
+    expect(launch.command).toBe("/managed/ruff");
+    expect(launch.args).toEqual(["server"]);
+    // Reported in the session details, so which copy is running is visible.
+    expect(launch.version).toBe("0.16.1");
+    expect((await resolveServer(process.execPath, managed)).command).toBe(process.execPath);
+  });
+  it("falls back to PATH once the managed install is gone", async () => {
+    spyOn(require("../lib/server"), "findOnPath").and.returnValue("/usr/bin/ruff");
+    expect((await resolveServer("", null)).command).toBe("/usr/bin/ruff");
+  });
+  it("names the exact release asset for each platform it supports", () => {
+    expect(assetFor({ platform: "win32", arch: "x64" })).toBe("ruff-x86_64-pc-windows-msvc.zip");
+    expect(assetFor({ platform: "darwin", arch: "arm64" })).toBe(
+      "ruff-aarch64-apple-darwin.tar.gz",
+    );
+    expect(assetFor({ platform: "linux", arch: "x64" })).toBe(
+      "ruff-x86_64-unknown-linux-gnu.tar.gz",
+    );
+    // An unsupported platform says so rather than guessing a name.
+    expect(assetFor({ platform: "aix", arch: "ppc64" })).toBeNull();
   });
   it("maps fix policy and IPython names to native-server configuration overrides", () => {
     expect(
