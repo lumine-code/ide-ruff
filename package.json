@@ -52,6 +52,12 @@
       "type": "string",
       "default": ""
     },
+    "notifyWhenMissing": {
+      "title": "Notify When Missing",
+      "description": "Show a notification when the language server cannot be found, offering to install it. Turned off by the notification’s Never Ask Again button.",
+      "type": "boolean",
+      "default": true
+    },
     "features": {
       "title": "Features",
       "description": "Which parts of Ruff the editor uses. Turning one off hands it to the next server serving the same file, which is how you choose between Ruff and another Python server. Only what Ruff implements is listed: it is a linter and a formatter, so it has no completions, navigation or symbols.",
