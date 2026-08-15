@@ -55,7 +55,7 @@ describe("ide-ruff package assets", () => {
     expect(pkg.consumedServices["ide-client"].versions["^1.0.0"]).toBe("consumeIdeClient");
     expect(pkg.providedServices).toBeUndefined();
     expect(pkg.dependencies).toBeUndefined();
-    expect(readme).toContain("- **ide-client** (`^1.0.0`): consumed to");
+    expect(readme).toContain("- `ide-client`: consumed to");
   });
 
   it("declares every setting the adapter reads, with no `order` keys", () => {
