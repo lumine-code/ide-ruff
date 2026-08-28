@@ -61,35 +61,35 @@
     "features": {
       "title": "Features",
       "description": "Which parts of Ruff the editor uses. Turning one off hands it to the next server serving the same file, which is how you choose between Ruff and another Python server. Only what Ruff implements is listed: it is a linter and a formatter, so it has no completions, navigation or symbols.",
-      "scopeResolution": "grammar",
       "type": "object",
+      "scopeResolution": "grammar",
       "properties": {
         "diagnostics": {
           "title": "Diagnostics",
           "description": "Report Ruff's violations in the linter. Turning this off also stops the server computing them.",
-          "scopeResolution": "grammar",
           "type": "boolean",
+          "scopeResolution": "grammar",
           "default": true
         },
         "hover": {
           "title": "Hover",
           "description": "Explain the rule behind a noqa code on hover.",
-          "scopeResolution": "grammar",
           "type": "boolean",
+          "scopeResolution": "grammar",
           "default": true
         },
         "format": {
           "title": "Format",
           "description": "Format documents with Ruff's formatter.",
-          "scopeResolution": "grammar",
           "type": "boolean",
+          "scopeResolution": "grammar",
           "default": true
         },
         "codeActions": {
           "title": "Code Actions",
           "description": "Offer Ruff's fixes in the intentions list.",
-          "scopeResolution": "grammar",
           "type": "boolean",
+          "scopeResolution": "grammar",
           "default": true
         }
       }
