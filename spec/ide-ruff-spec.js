@@ -89,6 +89,28 @@ describe("ide-ruff adapter", () => {
     expect(adapter.languageId).toBe("python");
     expect(adapter.sessionScope).toBe("project-root");
     expect(adapter.settingsKeyPaths).toEqual(["ide-ruff"]);
+    expect(adapter.restartKeyPaths).toEqual([
+      "ide-ruff.serverPath",
+      "ide-ruff.useNoqa",
+      "ide-ruff.configuration",
+      "ide-ruff.configurationPreference",
+      "ide-ruff.exclude",
+      "ide-ruff.lineLength",
+      "ide-ruff.fixAll",
+      "ide-ruff.organizeImports",
+      "ide-ruff.showSyntaxErrors",
+      "ide-ruff.logLevel",
+      "ide-ruff.features.diagnostics",
+      "ide-ruff.lint.preview",
+      "ide-ruff.lint.select",
+      "ide-ruff.lint.extendSelect",
+      "ide-ruff.lint.ignore",
+      "ide-ruff.lint.fixable",
+      "ide-ruff.lint.unfixable",
+      "ide-ruff.format.preview",
+      "ide-ruff.codeAction.disableRuleComment",
+      "ide-ruff.codeAction.fixViolation",
+    ]);
     disposable.dispose();
   });
 
@@ -158,47 +180,13 @@ describe("ide-ruff adapter", () => {
     disposable.dispose();
   });
 
-  describe("applying a changed setting", () => {
-    // Ruff's didChangeConfiguration handler is an empty stub upstream, so the
-    // push it receives is discarded and a restart is the only thing that
-    // applies a change. Without one, every setting on the page would look like
-    // it did nothing.
-    const withSession = () => {
-      const restarted = [];
-      let adapter;
-      const session = { state: "running" };
-      const disposable = main.consumeIdeClient({
-        registerAdapter(registered) {
-          adapter = registered;
-          session.adapter = registered;
-          return { dispose() {} };
-        },
-        getSessions: () => [session],
-        restart: async (target) => restarted.push(target),
-      });
-      return { adapter, restarted, disposable };
-    };
-
-    it("restarts the server for a server setting", () => {
-      const { restarted, disposable } = withSession();
-      lumine.config.set("ide-ruff.lint.select", ["F401"]);
-      expect(restarted.length).toBe(1);
-      lumine.config.set("ide-ruff.lineLength", 100);
-      expect(restarted.length).toBe(2);
-      disposable.dispose();
-    });
-
-    it("leaves it alone for a switch the editor applies itself", () => {
-      const { restarted, disposable } = withSession();
-      lumine.config.set("ide-ruff.features.hover", false);
-      lumine.config.set("ide-ruff.features.format", false);
-      expect(restarted.length).toBe(0);
-      // Diagnostics are the exception: they also decide whether Ruff lints,
-      // which it reads at startup.
-      lumine.config.set("ide-ruff.features.diagnostics", false);
-      expect(restarted.length).toBe(1);
-      disposable.dispose();
-    });
+  it("keeps switches that do not change synchronized text out of the restart contract", () => {
+    const { adapter, disposable } = registerAdapter();
+    expect(adapter.restartKeyPaths).not.toContain("ide-ruff.features.hover");
+    expect(adapter.restartKeyPaths).not.toContain("ide-ruff.features.format");
+    expect(adapter.restartKeyPaths).toContain("ide-ruff.useNoqa");
+    expect(adapter.restartKeyPaths).not.toContain("ide-ruff.notifyWhenMissing");
+    disposable.dispose();
   });
 
   it("offers a switch only for what Ruff advertises", () => {
