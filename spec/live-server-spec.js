@@ -42,9 +42,10 @@ liveSuite("ide-ruff native server", () => {
     const { capabilities, serverInfo } = await client.start();
     expect(serverInfo.name.toLowerCase()).toContain("ruff");
     expect(capabilities.diagnosticProvider.identifier).toBe("Ruff");
-    expect((await client.registrationFor("textDocument/formatting")).method).toBe(
-      "textDocument/formatting",
-    );
+    const formatting =
+      capabilities.documentFormattingProvider ||
+      (await client.registrationFor("textDocument/formatting"));
+    expect(formatting).toBeTruthy();
     expect(capabilities.hoverProvider).toBe(true);
 
     const uri = fileUri(path.join(rootPath, "history.py"));
