@@ -42,14 +42,22 @@ liveSuite("ide-ruff native server", () => {
     const { capabilities, serverInfo } = await client.start();
     expect(serverInfo.name.toLowerCase()).toContain("ruff");
     expect(capabilities.diagnosticProvider.identifier).toBe("Ruff");
-    expect(capabilities.documentFormattingProvider).toBe(true);
+    expect((await client.registrationFor("textDocument/formatting")).method).toBe(
+      "textDocument/formatting",
+    );
     expect(capabilities.hoverProvider).toBe(true);
 
     const uri = fileUri(path.join(rootPath, "history.py"));
-    client.open(uri, "print(_)\n");
+    client.open(uri, "value=1\nprint(_)\n");
     const report = await client.request("textDocument/diagnostic", {
       textDocument: { uri },
     });
     expect(report.items.some(({ code }) => code === "F821")).toBe(true);
+    expect(
+      await client.request("textDocument/formatting", {
+        textDocument: { uri },
+        options: { tabSize: 4, insertSpaces: true },
+      }),
+    ).toEqual(jasmine.any(Array));
   });
 });

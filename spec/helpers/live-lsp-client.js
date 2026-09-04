@@ -22,6 +22,7 @@ class LiveLspClient {
     this.adapter = adapter;
     this.rootPath = rootPath;
     this.stderr = "";
+    this.registrations = [];
   }
 
   async start() {
@@ -50,7 +51,10 @@ class LiveLspClient {
         ),
       ),
     );
-    this.connection.onRequest("client/registerCapability", () => null);
+    this.connection.onRequest("client/registerCapability", ({ registrations = [] }) => {
+      this.registrations.push(...registrations);
+      return null;
+    });
     this.connection.onRequest("client/unregisterCapability", () => null);
     this.connection.onRequest("workspace/diagnostic/refresh", () => null);
     this.connection.onRequest("workspace/workspaceFolders", () => this.workspaceFolders);
@@ -101,6 +105,16 @@ class LiveLspClient {
       `${this.adapter.displayName} ${method}; stderr: ${this.stderr}`,
       timeout,
     );
+  }
+
+  async registrationFor(method, timeout = 10000) {
+    const until = Date.now() + timeout;
+    do {
+      const registration = this.registrations.find((item) => item.method === method);
+      if (registration) return registration;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    } while (Date.now() < until);
+    throw new Error(`Ruff did not register ${method}; stderr: ${this.stderr}`);
   }
 
   open(uri, text) {
