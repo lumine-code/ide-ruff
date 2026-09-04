@@ -49,6 +49,7 @@ jobs:
     timeout-minutes: 60
     env:
       LUMINE_JASMINE_REPORTER: list
+      RUFF_VERSION: 0.16.6
     steps:
       - uses: actions/checkout@v6
         with:
@@ -73,6 +74,15 @@ jobs:
       # no ssh key, so rewrite them to anonymous HTTPS (the forks are public).
       - name: Use HTTPS for GitHub git dependencies
         run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+      - name: Install Ruff
+        working-directory: ide-ruff
+        run: |
+          curl -fsSLO "https://github.com/astral-sh/ruff/releases/download/${RUFF_VERSION}/ruff-x86_64-unknown-linux-gnu.tar.gz"
+          curl -fsSLO "https://github.com/astral-sh/ruff/releases/download/${RUFF_VERSION}/ruff-x86_64-unknown-linux-gnu.tar.gz.sha256"
+          sha256sum --check ruff-x86_64-unknown-linux-gnu.tar.gz.sha256
+          mkdir .server
+          tar -xzf ruff-x86_64-unknown-linux-gnu.tar.gz --strip-components=1 -C .server
+          echo "$PWD/.server" >> "$GITHUB_PATH"
       - name: Install package dependencies
         working-directory: ide-ruff
         run: npm ci --ignore-scripts

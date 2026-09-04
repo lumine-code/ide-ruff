@@ -2,30 +2,27 @@
 
 Ruff language-server adapter for Python.
 
-Registers the language server built into [Ruff](https://github.com/astral-sh/ruff), started as `ruff server`, with the bundled `ide-client` package.
+Registers the language server built into [Ruff](https://github.com/astral-sh/ruff), started as `ruff server`, with `ide-client`.
 
 ## Features
 
-- **Server discovery**: uses the Server Path setting, a copy the editor installed for you, or `ruff` on your PATH, in that order.
-- **Managed install**: downloads ruff from its GitHub releases and keeps it current, verifying each download against the published checksum.
-- **Python and IPython**: serves the Python grammar and its IPython dialect.
-- **Diagnostics**: reports lint violations as you type, with syntax errors from the parser.
-- **Global lint policy**: selects, extends, ignores, and controls autofix eligibility for Ruff rules from the settings page, with preview rules and the unstable formatter style behind their own switches.
+- **Server discovery**: uses the Server Path setting, a checksum-verified copy the editor installed, or `ruff` on your PATH, in that order.
+- **Python and IPython**: serves both grammars while masking line and cell magics, shell escapes, and help requests without changing editor text.
+- **Diagnostics and policy**: reports lint and syntax findings while the settings page selects, extends, ignores, and controls autofix eligibility for rules.
 - **Feature switches**: diagnostics, hover, formatting, and code actions can each be turned off, which hands them to another Python server on the same file. Turning diagnostics off also stops the server computing them.
 - **Settings applied live**: Ruff reads its settings only when it starts, so changing one restarts the server for you rather than leaving the setting inert until the next reload.
-- **Python directives**: honors or bypasses `# noqa` suppressions and automatically masks magic commands in IPython buffers without changing the editor text.
 - **Code actions**: fixes a single violation, fixes every fixable violation, or appends a `# noqa` comment.
-- **Formatting**: formats documents with the Ruff formatter and sorts imports on request.
+- **Formatting**: formats documents with Ruff itself or a compatible uv backend and sorts imports on request.
 - **Ruff configuration**: reads the discovered `ruff.toml` or `pyproject.toml`, overriding only the settings you set, and the Configuration Preference setting says which side wins.
 - **Project sessions**: one server per project root, started lazily with the first Python editor.
 
 ## Installation
 
-To install `ide-ruff` search for it in the Install pane of the Lumine settings, or run the command `lumine --install lumine-code/ide-ruff`. The `ruff` binary itself is installed separately, for example with `pip install ruff`, `uv tool install ruff`, or `pipx install ruff`.
+Install `ide-client` first, then search for `ide-ruff` in the Install pane of the Lumine settings, or run `lumine --install lumine-code/ide-ruff`. You can provide the `ruff` binary separately with `pip install ruff`, `uv tool install ruff`, or `pipx install ruff`, or let the editor fetch it from Manage Servers.
 
 ## Usage
 
-`ide-ruff` and `linter-ruff` both report Ruff diagnostics, and they are meant to be installed together. `linter-ruff` watches for this adapter and reports nothing for editors where its diagnostics feature is enabled, so a violation still appears once; what it keeps is the ground the server does not cover — Jupyter notebooks, whose cells it lints and maps individually, project-wide and tree-view scans, and its own fix and format commands. Turning adapter diagnostics off immediately hands those open editors back to `linter-ruff`.
+`ide-ruff` and `linter-ruff` both report Ruff diagnostics, and they are meant to be installed together. `linter-ruff` watches for this adapter and reports nothing for editors where its diagnostics feature is enabled, including Jupyter notebook cells once jupyter-view syncs them to the server, so a violation still appears once. It keeps project-wide and tree-view scans, which cover files nobody opened, and its own fix and format commands. Turning adapter diagnostics off immediately hands those open editors back to `linter-ruff`.
 
 ## Services
 

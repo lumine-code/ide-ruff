@@ -55,21 +55,14 @@ describe("ide-ruff server resolution", () => {
     // An unsupported platform says so rather than guessing a name.
     expect(assetFor({ platform: "aix", arch: "ppc64" })).toBeNull();
   });
-  it("maps fix policy and IPython names to native-server configuration overrides", () => {
+  it("maps fix policy without weakening ordinary Python undefined-name checks", () => {
     expect(
       configurationArgs({
         fixable: ["F401"],
         unfixable: ["B"],
       }),
-    ).toEqual([
-      "--config",
-      'lint.fixable = ["F401"]',
-      "--config",
-      'lint.unfixable = ["B"]',
-      "--config",
-      'builtins = ["_","__","___"]',
-    ]);
-    expect(configurationArgs({})).toEqual(["--config", 'builtins = ["_","__","___"]']);
+    ).toEqual(["--config", 'lint.fixable = ["F401"]', "--config", 'lint.unfixable = ["B"]']);
+    expect(configurationArgs({})).toEqual([]);
   });
 });
 
@@ -100,6 +93,7 @@ describe("ide-ruff adapter", () => {
       "ide-ruff.organizeImports",
       "ide-ruff.showSyntaxErrors",
       "ide-ruff.logLevel",
+      "ide-ruff.logFile",
       "ide-ruff.features.diagnostics",
       "ide-ruff.lint.preview",
       "ide-ruff.lint.select",
@@ -108,6 +102,7 @@ describe("ide-ruff adapter", () => {
       "ide-ruff.lint.fixable",
       "ide-ruff.lint.unfixable",
       "ide-ruff.format.preview",
+      "ide-ruff.format.backend",
       "ide-ruff.codeAction.disableRuleComment",
       "ide-ruff.codeAction.fixViolation",
     ]);
@@ -119,7 +114,7 @@ describe("ide-ruff adapter", () => {
     lumine.config.set("ide-ruff.serverPath", process.execPath);
     const launch = await adapter.resolveServer({ rootPath: __dirname });
     expect(launch.command).toBe(process.execPath);
-    expect(launch.args).toEqual(["server", "--config", 'builtins = ["_","__","___"]']);
+    expect(launch.args).toEqual(["server"]);
     expect(launch.cwd).toBe(__dirname);
     expect(launch.transport).toBe("stdio");
     disposable.dispose();
@@ -135,6 +130,8 @@ describe("ide-ruff adapter", () => {
     lumine.config.set("ide-ruff.lint.ignore", ["E501"]);
     lumine.config.set("ide-ruff.exclude", ["build"]);
     lumine.config.set("ide-ruff.configurationPreference", "filesystemFirst");
+    lumine.config.set("ide-ruff.logFile", "/tmp/ruff.log");
+    lumine.config.set("ide-ruff.format.backend", "uv");
 
     const { ruff } = adapter.getSettings();
     expect(ruff.lineLength).toBe(120);
@@ -142,12 +139,14 @@ describe("ide-ruff adapter", () => {
     expect(ruff.organizeImports).toBe(false);
     expect(ruff.showSyntaxErrors).toBe(true);
     expect(ruff.configurationPreference).toBe("filesystemFirst");
+    expect(ruff.logFile).toBe("/tmp/ruff.log");
     expect(ruff.exclude).toEqual(["build"]);
     expect(ruff.lint.select).toEqual(["E", "F"]);
     expect(ruff.lint.extendSelect).toEqual(["B"]);
     expect(ruff.lint.ignore).toEqual(["E501"]);
     expect(ruff.codeAction.disableRuleComment.enable).toBe(false);
     expect(ruff.codeAction.fixViolation.enable).toBe(true);
+    expect(ruff.format.backend).toBe("uv");
 
     expect(adapter.getWorkspaceConfiguration("ruff").lineLength).toBe(120);
     expect(adapter.getWorkspaceConfiguration().ruff.lineLength).toBe(120);
@@ -171,12 +170,18 @@ describe("ide-ruff adapter", () => {
     disposable.dispose();
   });
 
-  it("stops the server linting when the diagnostics switch is off", () => {
-    // One control, not two: what the editor would discard is not computed.
+  it("keeps server linting on when any grammar-scoped diagnostics route needs it", () => {
     const { adapter, disposable } = registerAdapter();
     expect(adapter.getSettings().ruff.lint.enable).toBe(true);
     lumine.config.set("ide-ruff.features.diagnostics", false);
     expect(adapter.getSettings().ruff.lint.enable).toBe(false);
+    lumine.config.set("ide-ruff.features.diagnostics", true, {
+      scopeSelector: ".source.python.ipy",
+    });
+    expect(adapter.getSettings().ruff.lint.enable).toBe(true);
+    lumine.config.unset("ide-ruff.features.diagnostics", {
+      scopeSelector: ".source.python.ipy",
+    });
     disposable.dispose();
   });
 
@@ -254,6 +259,22 @@ describe("ide-ruff source transforms", () => {
     });
     expect(transformed).toContain('"# noqa: F401"');
     expect(transformed).not.toContain("import os  # noqa");
+    expect(sourceTransform.restore(transformed, source)).toBe(source);
+  });
+
+  it("masks shell escapes, indented magics and complete cell-magic bodies", () => {
+    const source =
+      '!pip install numpy\nif ready:\n    %timeit work()\n# %% shell\n%%bash\necho "$HOME"\nfor file in *; do echo "$file"; done\n# %% python\nanswer = 42\n';
+    const transformed = sourceTransform.transform(source, {
+      maskMagic: true,
+      useNoqa: true,
+    });
+
+    expect(transformed).not.toContain("!pip");
+    expect(transformed).not.toContain("%timeit");
+    expect(transformed).not.toContain("%%bash");
+    expect(transformed).not.toContain('echo "$HOME"');
+    expect(transformed).toContain("# %% python\nanswer = 42");
     expect(sourceTransform.restore(transformed, source)).toBe(source);
   });
 });

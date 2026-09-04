@@ -43,7 +43,8 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-n": "^18.3.0",
     "globals": "^17.11.0",
-    "prettier": "^3.9.6"
+    "prettier": "^3.9.6",
+    "vscode-jsonrpc": "^9.0.2"
   },
   "configSchema": {
     "serverPath": {
@@ -164,6 +165,12 @@
       ],
       "default": "info"
     },
+    "logFile": {
+      "title": "Log File",
+      "description": "Path where Ruff writes its language-server log. Leave empty to keep the log in the editor's IDE log.",
+      "type": "string",
+      "default": ""
+    },
     "lint": {
       "title": "Lint",
       "description": "Which rules run. Leave the lists empty to use the Ruff configuration files.",
@@ -232,6 +239,16 @@
           "description": "Format with the style changes Ruff still marks as unstable.",
           "type": "boolean",
           "default": false
+        },
+        "backend": {
+          "title": "Backend",
+          "description": "Format with Ruff itself, or delegate to uv 0.8.13 or newer.",
+          "type": "string",
+          "enum": [
+            "internal",
+            "uv"
+          ],
+          "default": "internal"
         }
       }
     },
