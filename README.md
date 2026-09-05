@@ -18,7 +18,9 @@ Registers the language server built into [Ruff](https://github.com/astral-sh/ruf
 
 ## Installation
 
-Install `ide-client` first, then search for `ide-ruff` in the Install pane of the Lumine settings, or run `lumine --install lumine-code/ide-ruff`. You can provide the `ruff` binary separately with `pip install ruff`, `uv tool install ruff`, or `pipx install ruff`, or let the editor fetch it from Manage Servers.
+To install `ide-ruff` search for it in the Install pane of the Lumine settings, or run the command `lumine --install lumine-code/ide-ruff`.
+
+Install `ide-client` first. You can provide the `ruff` binary separately with `pip install ruff`, `uv tool install ruff`, or `pipx install ruff`, or let the editor fetch it from Manage Servers.
 
 ## Usage
 
