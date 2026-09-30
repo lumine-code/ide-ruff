@@ -68,6 +68,7 @@ class LiveLspClient {
       rootUri,
       workspaceFolders: this.workspaceFolders,
       capabilities: {
+        notebookDocument: { synchronization: { dynamicRegistration: false } },
         workspace: {
           configuration: true,
           workspaceFolders: true,

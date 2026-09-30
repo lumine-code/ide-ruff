@@ -1,6 +1,6 @@
 const path = require("path");
 const { resolveServer, findOnPath, configurationArgs, assetFor } = require("../lib/server");
-const main = require("../lib/main");
+let main;
 const sourceTransform = require("../lib/source-transform");
 
 const registerAdapter = () => {
@@ -70,7 +70,7 @@ describe("ide-ruff adapter", () => {
   beforeEach(async () => {
     // Applies the configSchema, so the defaults the adapter reads are the ones
     // the manifest declares rather than a copy of them kept here.
-    await lumine.packages.activatePackage("ide-ruff");
+    main = (await lumine.packages.activatePackage(path.resolve(__dirname, ".."))).mainModule;
   });
   afterEach(async () => lumine.packages.deactivatePackage("ide-ruff"));
 
@@ -207,27 +207,36 @@ describe("ide-ruff adapter", () => {
     ]);
   });
 
-  it("reversibly hides noqa directives and IPython magic from Ruff", () => {
+  it("uses the shared IPython projection and keeps its same-width noqa policy", async () => {
     const { adapter, disposable } = registerAdapter();
     lumine.config.set("ide-ruff.useNoqa", false);
     const original = "# ruff: noqa: F401\nimport os  # noqa: F401\n%timeit os.getcwd()\n  value?\n";
-    const transformed = adapter.transformDocumentText(original, {
-      editor: {
-        getGrammar: () => ({ scopeName: "source.python.ipy" }),
-        scopeDescriptorForBufferPosition: () => ({
-          getScopesArray: () => ["source.python", "comment.line.number-sign.python"],
-        }),
-      },
+    const editor = {
+      getGrammar: () => ({ scopeName: "source.python.ipy" }),
+      scopeDescriptorForBufferPosition: () => ({
+        getScopesArray: () => ["source.python", "comment.line.number-sign.python"],
+      }),
+    };
+    const snapshot = Object.freeze({
+      source: original,
+      text: "# ruff: noqa: F401\nimport os  # noqa: F401\n0\n  0\n",
+      isCurrent: () => true,
+      fromServerPosition: (point) => point,
+      isPythonPosition: () => true,
+      mapEdits: (edits) => edits,
     });
+    const project = jasmine.createSpy("project").and.resolveTo(snapshot);
+    const provider = main.consumeIpythonSource({ isApplicable: () => true, project });
+    const projection = await adapter.getDocumentProjection(editor);
+    const transformed = projection.text;
 
     expect(transformed).not.toContain("noqa");
     expect(transformed).not.toContain("%timeit");
     expect(transformed).not.toContain("value?");
-    expect(
-      adapter.restoreDocumentText(transformed, {
-        editor: { getText: () => original },
-      }),
-    ).toBe(original);
+    expect(projection.mapEdits([{ oldRange: {}, newText: transformed }])[0].newText).toBe(
+      snapshot.text,
+    );
+    expect(project).toHaveBeenCalledWith(editor, { signal: undefined });
 
     const pythonSource = "%timeit range(10)\n";
     expect(
@@ -240,6 +249,7 @@ describe("ide-ruff adapter", () => {
         },
       }),
     ).toBe(pythonSource);
+    provider.dispose();
     disposable.dispose();
   });
 });
@@ -259,22 +269,16 @@ describe("ide-ruff source transforms", () => {
     });
     expect(transformed).toContain('"# noqa: F401"');
     expect(transformed).not.toContain("import os  # noqa");
-    expect(sourceTransform.restore(transformed, source)).toBe(source);
+    expect(sourceTransform.restoreNoqa(transformed)).toBe(source);
   });
 
-  it("masks shell escapes, indented magics and complete cell-magic bodies", () => {
+  it("leaves magic-looking text alone because only the AST provider classifies IPython", () => {
     const source =
       '!pip install numpy\nif ready:\n    %timeit work()\n# %% shell\n%%bash\necho "$HOME"\nfor file in *; do echo "$file"; done\n# %% python\nanswer = 42\n';
     const transformed = sourceTransform.transform(source, {
-      maskMagic: true,
       useNoqa: true,
     });
 
-    expect(transformed).not.toContain("!pip");
-    expect(transformed).not.toContain("%timeit");
-    expect(transformed).not.toContain("%%bash");
-    expect(transformed).not.toContain('echo "$HOME"');
-    expect(transformed).toContain("# %% python\nanswer = 42");
-    expect(sourceTransform.restore(transformed, source)).toBe(source);
+    expect(transformed).toBe(source);
   });
 });
