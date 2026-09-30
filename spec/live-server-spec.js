@@ -202,4 +202,62 @@ liveSuite("ide-ruff native server", () => {
     ).toBe(true);
     expect(fs.existsSync(filePath)).toBe(false);
   });
+
+  it("formats a multi-cell batch with the real server and retains docstrings, imports and opaque bytes", async () => {
+    await lumine.packages.activatePackage(path.resolve(__dirname, "..", "..", "language-ipython"));
+    projectionRegistration = main.consumeIpythonSource(
+      lumine.packages.getActivePackage("language-ipython").mainModule.provideIPythonSource(),
+    );
+    const filePath = path.join(rootPath, "batch.ipy");
+    formatEditor = await lumine.workspace.open(filePath);
+    const source =
+      '# %% Documentation\n"""Module documentation."""\nfrom __future__ import annotations\nfirst=1\n# %% [raw]\nraw <😀>\n# %% Timed\n%%time -q\nvalue=1\n%pwd\n# %% Final\nlast=2\n';
+    formatEditor.setText(source);
+    lumine.grammars.assignLanguageMode(formatEditor.getBuffer(), "source.python.ipy");
+    await formatEditor.whenGrammarSettled();
+    const projection = await adapter.getDocumentProjection(formatEditor);
+    await client.start();
+    let opened = 0,
+      requests = 0;
+    const session = {
+      rootPath,
+      request(method, params) {
+        requests++;
+        return client.request(method, params);
+      },
+      async withTemporaryDocument(item, callback) {
+        opened++;
+        await client.connection.sendNotification("textDocument/didOpen", {
+          textDocument: { ...item, version: 1 },
+        });
+        try {
+          return await callback(item.uri);
+        } finally {
+          await client.connection.sendNotification("textDocument/didClose", {
+            textDocument: { uri: item.uri },
+          });
+        }
+      },
+    };
+    const edits = await adapter.formatProjectedDocument(formatEditor, projection, {
+      method: "file",
+      options: { tabSize: 4, insertSpaces: true },
+      session,
+    });
+    expect(edits).not.toBeNull();
+    for (const edit of edits.sort((a, b) => b.oldRange.start.compare(a.oldRange.start)))
+      formatEditor.setTextInBufferRange(edit.oldRange, edit.newText);
+    const formatted = formatEditor.getText();
+    expect(opened).toBe(1);
+    expect(requests).toBe(1);
+    expect(formatted).toContain('"""Module documentation."""');
+    expect(formatted).toContain("from __future__ import annotations");
+    expect(formatted).toContain("first = 1");
+    expect(formatted).toContain("value = 1");
+    expect(formatted).toContain("last = 2");
+    expect(formatted).toContain("# %% [raw]\nraw <😀>\n# %% Timed\n%%time -q\n");
+    expect(formatted).toContain("%pwd\n");
+    expect(formatted).not.toContain("__lumine_ipy_batch_");
+    expect(fs.existsSync(filePath)).toBe(false);
+  });
 });

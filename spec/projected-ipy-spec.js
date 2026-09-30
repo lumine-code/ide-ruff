@@ -24,18 +24,29 @@ describe("Ruff shared IPython projection", () => {
   });
   function snapshot(overrides = {}) {
     const source = editor.getText();
-    return Object.freeze({
+    const value = {
       source,
       text: "# %% [raw]\n              \n# %%\nx=1\n",
       isCurrent: () => !editor.isDestroyed() && editor.getText() === source,
       isPythonPosition: (point) => point.row === 3,
       fromServerPosition: (point) => point,
       mapEdits: (edits) => edits,
-      getFormattingBlocks: () => [
+      getFormattingBlocks: async () => [
         { range: new Range([3, 0], [4, 0]), text: "x=1\n", restore: (formatted) => formatted },
       ],
       ...overrides,
-    });
+    };
+    value.getFormattingBatch ??= async () => {
+      const blocks = await value.getFormattingBlocks();
+      return {
+        text: blocks[0].text,
+        restore(formatted) {
+          const text = blocks[0].restore(formatted);
+          return text === null ? null : [{ range: blocks[0].range, text }];
+        },
+      };
+    };
+    return Object.freeze(value);
   }
   function register(value) {
     const project = jasmine.createSpy("project").and.resolveTo(value);
@@ -163,9 +174,37 @@ describe("Ruff shared IPython projection", () => {
     expect(editor.getText()).toBe("user content");
   });
 
+  it("starts no temporary document when source changes during lazy block preparation", async () => {
+    let release, started;
+    const blocks = new Promise((resolve) => {
+      release = resolve;
+    });
+    const preparing = new Promise((resolve) => {
+      started = resolve;
+    });
+    const projection = snapshot({
+      getFormattingBlocks: () => {
+        started();
+        return blocks;
+      },
+    });
+    const test = formattingSession();
+    const pending = adapter.formatProjectedDocument(editor, projection, {
+      method: "file",
+      session: test.session,
+      options: {},
+    });
+    await preparing;
+    editor.setText("user content");
+    release([{ range: new Range([3, 0], [4, 0]), text: "x=1\n", restore: (text) => text }]);
+    expect(await pending).toBeNull();
+    expect(test.calls.length).toBe(0);
+    expect(editor.getText()).toBe("user content");
+  });
+
   it("returns no partial edits when a formatting block cannot restore protected syntax", async () => {
     const projection = snapshot({
-      getFormattingBlocks: () => [
+      getFormattingBlocks: async () => [
         { range: new Range([3, 0], [4, 0]), text: "x=1\n", restore: () => null },
       ],
     });
@@ -180,6 +219,21 @@ describe("Ruff shared IPython projection", () => {
     ).toBeNull();
     expect(editor.getText()).toBe(projection.source);
     expect(test.active()).toBe(0);
+  });
+
+  it("honours the client invocation guard before starting formatting work", async () => {
+    const projection = snapshot();
+    const test = formattingSession();
+    expect(
+      await adapter.formatProjectedDocument(editor, projection, {
+        method: "file",
+        session: test.session,
+        options: {},
+        isInvocationCurrent: () => false,
+      }),
+    ).toBeNull();
+    expect(test.calls.length).toBe(0);
+    expect(editor.getText()).toBe(projection.source);
   });
 
   it("rejects malformed and overlapping server edits before restoring a block", async () => {

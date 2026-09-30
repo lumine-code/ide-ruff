@@ -12,7 +12,7 @@ Registers the language server built into [Ruff](https://github.com/astral-sh/ruf
 - **Feature switches**: diagnostics, hover, formatting, and code actions can each be turned off, which hands them to another Python server on the same file. Turning diagnostics off also stops the server computing them.
 - **Settings applied live**: Ruff reads its settings only when it starts, so changing one restarts the server for you rather than leaving the setting inert until the next reload.
 - **Code actions**: fixes a single violation, fixes every fixable violation, or appends a `# noqa` comment.
-- **Formatting**: formats ordinary Python through the server; `.ipy` formatting stages safe Python blocks in isolated temporary documents in that same session, preserving protected content and Ruff's configured backend.
+- **Formatting**: formats ordinary Python through the server; `.ipy` formatting batches safe Python bodies into one temporary document in that same session, preserving protected content and Ruff's configured backend.
 - **Ruff configuration**: reads the discovered `ruff.toml` or `pyproject.toml`, overriding only the settings you set, and the Configuration Preference setting says which side wins.
 - **Project sessions**: one server per project root, started lazily with the first Python editor.
 
@@ -26,7 +26,7 @@ Install `ide-client` first. You can provide the `ruff` binary separately with `p
 
 `ide-ruff` and `linter-ruff` both report Ruff diagnostics, and they are meant to be installed together. `linter-ruff` watches for this adapter and reports nothing for editors where its diagnostics feature is enabled, including Jupyter notebook cells once jupyter-view syncs them to the server, so a violation still appears once. It keeps project-wide and tree-view scans, which cover files nobody opened, and its own fix and format commands. Turning adapter diagnostics off immediately hands those open editors back to `linter-ruff`.
 
-IPython support requires the passive `ipython.source` service from language-ipython. If it is unavailable, the adapter refuses to send a mixed document as Python. Projection maps preserve source coordinates, reject stale edits and protect non-Python content. Temporary formatting documents use a unique URI query on the original pathname, retain its project and per-file settings, and close before the next block; no temporary files or editor models are created.
+IPython support requires the passive `ipython.source` service from language-ipython. If it is unavailable, the adapter refuses to send a mixed document as Python. Projection maps preserve source coordinates, reject stale edits and protect non-Python content. One temporary formatting document uses a unique URI query on the original pathname and retains its project and per-file settings. Comment delimiters keep its Python bodies identifiable without introducing statements before docstrings or future imports; all bodies must restore successfully before any edits apply. The document closes after the request; no temporary files or editor models are created.
 
 ## Services
 

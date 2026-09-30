@@ -80,4 +80,49 @@ describe("Ruff adapter with the real IPython AST projection", () => {
       projection.mapEdits([{ oldRange: new Range([3, 0], [4, 7]), newText: "value = 2" }]),
     ).toBeNull();
   });
+
+  it("formats 1000 code cells in one temporary document and one backend request", async () => {
+    const source = Array.from(
+      { length: 1000 },
+      (_, index) => `# %% Cell ${index}\nvalue_${index}=1\n`,
+    ).join("");
+    editor.setText(source);
+    await editor.whenGrammarSettled();
+    const projection = await adapter.getDocumentProjection(editor);
+    let current,
+      opened = 0,
+      requests = 0;
+    const session = {
+      rootPath: path.resolve(__dirname),
+      async withTemporaryDocument(item, callback) {
+        opened++;
+        current = item;
+        return callback(item.uri);
+      },
+      async request() {
+        requests++;
+        const lines = current.text.split("\n");
+        return [
+          {
+            range: {
+              start: { line: 0, character: 0 },
+              end: { line: lines.length - 1, character: lines.at(-1).length },
+            },
+            newText: current.text.replaceAll("=1", " = 1"),
+          },
+        ];
+      },
+    };
+    const edits = await adapter.formatProjectedDocument(editor, projection, {
+      method: "file",
+      session,
+      options: {},
+    });
+    expect(opened).toBe(1);
+    expect(requests).toBe(1);
+    expect(new Set(edits.map((edit) => edit.oldRange.start.row)).size).toBe(1000);
+    for (const edit of edits.sort((a, b) => b.oldRange.start.compare(a.oldRange.start)))
+      editor.setTextInBufferRange(edit.oldRange, edit.newText);
+    expect(editor.getText()).toBe(source.replaceAll("=1", " = 1"));
+  });
 });
