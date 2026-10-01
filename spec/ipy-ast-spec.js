@@ -1,5 +1,5 @@
 const path = require("path");
-const { Range } = require("lumine");
+const { Range, TextBuffer } = require("lumine");
 
 describe("Ruff adapter with the real IPython AST projection", () => {
   let editor, main, adapter, registration, adapterRegistration;
@@ -113,6 +113,7 @@ describe("Ruff adapter with the real IPython AST projection", () => {
         ];
       },
     };
+    const nativeDiff = spyOn(TextBuffer.prototype, "getChangesToText").and.callThrough();
     const edits = await adapter.formatProjectedDocument(editor, projection, {
       method: "file",
       session,
@@ -120,9 +121,70 @@ describe("Ruff adapter with the real IPython AST projection", () => {
     });
     expect(opened).toBe(1);
     expect(requests).toBe(1);
+    expect(nativeDiff).not.toHaveBeenCalled();
     expect(new Set(edits.map((edit) => edit.oldRange.start.row)).size).toBe(1000);
-    for (const edit of edits.sort((a, b) => b.oldRange.start.compare(a.oldRange.start)))
-      editor.setTextInBufferRange(edit.oldRange, edit.newText);
+    editor.transact(() => {
+      for (const edit of edits.sort((a, b) => b.oldRange.start.compare(a.oldRange.start)))
+        editor.setTextInBufferRange(edit.oldRange, edit.newText);
+    });
+    await editor.whenGrammarSettled();
     expect(editor.getText()).toBe(source.replaceAll("=1", " = 1"));
+  });
+
+  it("preserves guarded multiple reversed selections when applying Python-only edits", async () => {
+    const source = "#%% One\r\nfirst=1; chosen=2\r\n#%% Two\r\nother=3\r\n";
+    editor.setText(source);
+    await editor.whenGrammarSettled();
+    editor.getBuffer().clearUndoStack();
+    editor.setSelectedBufferRanges([new Range([0, 0], [0, 7]), new Range([1, 9], [1, 15])]);
+    editor.getSelections()[1].setBufferRange(new Range([1, 9], [1, 15]), { reversed: true });
+    const projection = await adapter.getDocumentProjection(editor);
+    let document;
+    const session = {
+      rootPath: path.resolve(__dirname),
+      async withTemporaryDocument(item, callback) {
+        document = item;
+        return callback(item.uri);
+      },
+      async request() {
+        const lines = document.text.split("\n");
+        return [
+          {
+            range: {
+              start: { line: 0, character: 0 },
+              end: { line: lines.length - 1, character: lines.at(-1).length },
+            },
+            newText: document.text.replaceAll("=", " = "),
+          },
+        ];
+      },
+    };
+    const diff = spyOn(TextBuffer.prototype, "getChangesToText").and.callThrough();
+    const edits = await adapter.formatProjectedDocument(editor, projection, {
+      method: "file",
+      session,
+      options: {},
+    });
+    expect(diff).toHaveBeenCalledTimes(1);
+    editor.transact(() => {
+      for (const edit of edits.toSorted((a, b) => b.oldRange.start.compare(a.oldRange.start)))
+        editor.setTextInBufferRange(edit.oldRange, edit.newText);
+    });
+    const reference = lumine.workspace.buildTextEditor();
+    try {
+      reference.setText(source);
+      reference.setSelectedBufferRanges([new Range([0, 0], [0, 7]), new Range([1, 9], [1, 15])]);
+      reference.getSelections()[1].setBufferRange(new Range([1, 9], [1, 15]), { reversed: true });
+      reference.getBuffer().setTextViaDiff(source.replaceAll("=", " = "));
+      expect(editor.getSelectedBufferRanges()).toEqual(reference.getSelectedBufferRanges());
+    } finally {
+      reference.destroy();
+    }
+    expect(editor.getSelections()[1].isReversed()).toBe(true);
+    expect(editor.getText()).toBe(source.replaceAll("=", " = "));
+    editor.undo();
+    expect(editor.getText()).toBe(source);
+    editor.redo();
+    expect(editor.getText()).toBe(source.replaceAll("=", " = "));
   });
 });
