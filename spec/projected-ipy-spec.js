@@ -44,6 +44,16 @@ describe("Ruff shared IPython projection", () => {
           const text = blocks[0].restore(formatted);
           return text === null ? null : [{ range: blocks[0].range, text }];
         },
+        async getEditPlan(formatted) {
+          const text = blocks[0].restore(formatted);
+          return text === null
+            ? null
+            : {
+                text: source.replace(blocks[0].text, text),
+                edits: [{ oldRange: blocks[0].range, newText: text }],
+                fallback: false,
+              };
+        },
       };
     };
     return Object.freeze(value);
@@ -69,6 +79,32 @@ describe("Ruff shared IPython projection", () => {
     expect(await adapter.getDocumentProjection(editor)).toBeNull();
     expect(await adapter.getDocumentProjection(editor)).toBeNull();
     expect(warnings).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts scope-only diagnostic contexts after a Python or IPython editor closes", () => {
+    main.ipythonSource = null;
+    for (const scope of ["source.python", "source.python.ipy"]) {
+      const context = { getRootScopeDescriptor: () => [scope] };
+      expect(adapter.isFeatureAvailable("diagnostics", context)).toBe(true);
+      expect(adapter.isFeatureAvailable("hover", context)).toBe(true);
+    }
+  });
+
+  it("keeps IPython formatting gated in neutral scope and pathname contexts", () => {
+    main.ipythonSource = null;
+    for (const context of [
+      { getRootScopeDescriptor: () => ["source.python.ipy"] },
+      { getRootScopeDescriptor: () => ({ getScopesArray: () => ["source.python.ipy"] }) },
+      { getPath: () => "closed.IPY" },
+    ])
+      expect(adapter.isFeatureAvailable("format", context)).toBe(false);
+    expect(
+      adapter.isFeatureAvailable("format", { getRootScopeDescriptor: () => ["source.python"] }),
+    ).toBe(true);
+    serviceRegistration = main.consumeIpythonSource({});
+    expect(
+      adapter.isFeatureAvailable("format", { getRootScopeDescriptor: () => ["source.python.ipy"] }),
+    ).toBe(true);
   });
 
   it("keeps ordinary Python incremental unless the existing noqa policy needs a transform", async () => {
