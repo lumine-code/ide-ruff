@@ -1,6 +1,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { Range } = require("lumine");
 let main;
 const { findOnPath } = require("../lib/server");
 const { LiveLspClient, fileUri } = require("./helpers/live-lsp-client");
@@ -259,5 +260,34 @@ liveSuite("ide-ruff native server", () => {
     expect(formatted).toContain("%pwd\n");
     expect(formatted).not.toContain("__lumine_ipy_batch_");
     expect(fs.existsSync(filePath)).toBe(false);
+  });
+
+  it("analyzes one Python document across cells without linting Markdown fences or raw bodies", async () => {
+    await lumine.packages.activatePackage(path.resolve(__dirname, "..", "..", "language-ipython"));
+    projectionRegistration = main.consumeIpythonSource(
+      lumine.packages.getActivePackage("language-ipython").mainModule.provideIPythonSource(),
+    );
+    lumine.config.set("ide-ruff.lint.select", ["F401", "F821"]);
+    const filePath = path.join(rootPath, "shared.ipy");
+    formatEditor = await lumine.workspace.open(filePath);
+    formatEditor.setText(
+      "# %% Setup\nimport math\nshared = 9\n# %% [markdown] Notes\n```python\nfenced_only = missing_from_markdown\n```\n# %% [raw]\nraw <bytes>\n# %% Use\nresult = math.sqrt(shared)\nundefined_real\n",
+    );
+    lumine.grammars.assignLanguageMode(formatEditor.getBuffer(), "source.python.ipy");
+    await formatEditor.whenGrammarSettled();
+    const projection = await adapter.getDocumentProjection(formatEditor);
+    await client.start();
+    const uri = fileUri(filePath);
+    client.open(uri, projection.text);
+    const report = await client.request("textDocument/diagnostic", { textDocument: { uri } });
+    expect(report.items.some((item) => item.code === "F401")).toBe(false);
+    const undefinedNames = report.items.filter((item) => item.code === "F821");
+    expect(undefinedNames.length).toBe(1);
+    const missing = undefinedNames[0];
+    expect(missing.message).toContain("undefined_real");
+    expect(missing.range.start.line).toBe(11);
+    expect(projection.fromServerRange(new Range([11, 0], [11, 14])).start.row).toBe(11);
+    expect(projection.text).not.toContain("missing_from_markdown");
+    expect(projection.text).not.toContain("raw <bytes>");
   });
 });
