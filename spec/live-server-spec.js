@@ -1,7 +1,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { Range } = require("lumine");
+const { Range, TextBuffer } = require("lumine");
 let main;
 const { findOnPath } = require("../lib/server");
 const { LiveLspClient, fileUri } = require("./helpers/live-lsp-client");
@@ -99,6 +99,39 @@ liveSuite("ide-ruff native server", () => {
       textDocument: { uri: hostUri },
     });
     expect(after.items.some((diagnostic) => diagnostic.code === "F821")).toBe(true);
+  });
+
+  it("applies the real Ruff single-edit response without a scratch buffer and keeps trailing bytes", async () => {
+    await client.start();
+    const source = "# preserved header\r\nvalue='😀'; result=1\r\n";
+    const uri = fileUri(path.join(rootPath, "single-edit.py"));
+    client.open(uri, source);
+    const edits = await client.request("textDocument/formatting", {
+      textDocument: { uri },
+      options: { tabSize: 4, insertSpaces: true },
+    });
+    expect(edits.length).toBe(1);
+    const reference = new TextBuffer({ text: source });
+    try {
+      const change = edits[0];
+      reference.setTextInRange(
+        [
+          [change.range.start.line, change.range.start.character],
+          [change.range.end.line, change.range.end.character],
+        ],
+        change.newText,
+        { normalizeLineEndings: false },
+      );
+      const constructed = spyOn(TextBuffer.prototype, "setHistoryProvider").and.callThrough();
+      const formatted = require("../lib/server-edits")(source, edits);
+      expect(constructed).not.toHaveBeenCalled();
+      expect(formatted).toBe(reference.getText());
+      expect(formatted).toContain("result = 1");
+      expect(formatted).toContain("😀");
+      expect(formatted.endsWith("\r\n")).toBe(true);
+    } finally {
+      reference.destroy();
+    }
   });
 
   it("retains native notebook Python under %%time while excluding Markdown", async () => {
