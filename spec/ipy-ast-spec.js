@@ -137,6 +137,116 @@ describe("Ruff adapter with the real IPython AST projection", () => {
     expect(editor.getText()).toBe(source.replaceAll("=1", " = 1"));
   });
 
+  it("formats canonical Python on the existing host and rejects protected or stale responses", async () => {
+    const source = "# %% One\r\nfirst=1\r\n# %% Two\r\nlast=2\r\n";
+    editor.setText(source);
+    await editor.whenGrammarSettled();
+    const projection = await adapter.getDocumentProjection(editor),
+      uri = "file:///canonical-host.ipy";
+    expect(projection.isIdentity).toBe(true);
+    const calls = [];
+    let response = source.replaceAll("=", " = "),
+      changeSelection = false;
+    const session = {
+      async request(method, params) {
+        calls.push({ method, uri: params.textDocument.uri });
+        if (changeSelection) editor.setCursorBufferPosition([1, 1]);
+        return [
+          {
+            range: { start: { line: 0, character: 0 }, end: { line: 4, character: 0 } },
+            newText: response,
+          },
+        ];
+      },
+      withTemporaryDocument() {
+        throw new Error("Canonical host must not open a temporary document");
+      },
+    };
+    const result = await adapter.formatProjectedDocument(editor, projection, {
+      method: "file",
+      session,
+      uri,
+      options: {},
+    });
+    expect(calls).toEqual([{ method: "textDocument/formatting", uri }]);
+    expect(result.text).toBe(response);
+    response = response.replace("# %% One", "# %% Changed");
+    expect(
+      await adapter.formatProjectedDocument(editor, projection, {
+        method: "file",
+        session,
+        uri,
+        options: {},
+      }),
+    ).toBeNull();
+    response = source.replaceAll("=", " = ");
+    changeSelection = true;
+    expect(
+      await adapter.formatProjectedDocument(editor, projection, {
+        method: "file",
+        session,
+        uri,
+        options: {},
+      }),
+    ).toBeNull();
+    expect(editor.getText()).toBe(source);
+  });
+
+  it("keeps changed wire/noqa text and partial requests on guarded temporary formatting", async () => {
+    const source = "# %% One\nfirst=1\n# %% Two\nlast=2\n";
+    editor.setText(source);
+    await editor.whenGrammarSettled();
+    const projection = await adapter.getDocumentProjection(editor);
+    const wireChanged = Object.freeze(
+      Object.defineProperty(Object.create(projection), "text", {
+        value: source.replace("first=1", "first=1 # noqa"),
+      }),
+    );
+    let opened = 0;
+    const session = {
+      async withTemporaryDocument(item, callback) {
+        opened++;
+        return callback("file:///temporary.ipy?format");
+      },
+      async request(method, params) {
+        expect(params.textDocument.uri).toBe("file:///temporary.ipy?format");
+        return [];
+      },
+    };
+    expect(
+      await adapter.formatProjectedDocument(editor, wireChanged, {
+        method: "file",
+        session,
+        uri: "file:///host.ipy",
+        options: {},
+      }),
+    ).not.toBeNull();
+    expect(
+      await adapter.formatProjectedDocument(editor, projection, {
+        method: "range",
+        range: new Range([1, 0], [1, 7]),
+        session,
+        uri: "file:///host.ipy",
+        options: {},
+      }),
+    ).not.toBeNull();
+    expect(opened).toBe(2);
+    const original = editor.getText();
+    const aborted = new AbortController();
+    aborted.abort();
+    expect(
+      await adapter.formatProjectedDocument(editor, projection, {
+        method: "file",
+        session,
+        uri: "file:///host.ipy",
+        options: {},
+        signal: aborted.signal,
+      }),
+    ).toBeNull();
+    expect(opened).toBe(2);
+    expect(editor.getText()).toBe(original);
+  });
+
   it("preserves guarded multiple reversed selections when applying Python-only edits", async () => {
     const source = "#%% One\r\nfirst=1; chosen=2\r\n#%% Two\r\nother=3\r\n";
     editor.setText(source);

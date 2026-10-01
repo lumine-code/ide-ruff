@@ -134,6 +134,53 @@ liveSuite("ide-ruff native server", () => {
     }
   });
 
+  it("formats canonical cells through the real host URI with one request and exact headers", async () => {
+    await lumine.packages.activatePackage(path.resolve(__dirname, "..", "..", "language-ipython"));
+    projectionRegistration = main.consumeIpythonSource(
+      lumine.packages.getActivePackage("language-ipython").mainModule.provideIPythonSource(),
+    );
+    const filePath = path.join(rootPath, "canonical.ipy"),
+      source = "# %% One\r\nfirst=1\r\n# %% Two\r\nlast=2\r\n";
+    formatEditor = await lumine.workspace.open(filePath);
+    formatEditor.setText(source);
+    lumine.grammars.assignLanguageMode(formatEditor.getBuffer(), "source.python.ipy");
+    await formatEditor.whenGrammarSettled();
+    const projection = await adapter.getDocumentProjection(formatEditor),
+      uri = fileUri(filePath);
+    await client.start();
+    client.open(uri, projection.text);
+    let requests = 0;
+    const session = {
+      rootPath,
+      request(method, params) {
+        requests++;
+        expect(params.textDocument.uri).toBe(uri);
+        return client.request(method, params);
+      },
+      withTemporaryDocument() {
+        throw new Error("No canonical temporary document expected");
+      },
+    };
+    const result = await adapter.formatProjectedDocument(formatEditor, projection, {
+      method: "file",
+      session,
+      uri,
+      options: { tabSize: 4, insertSpaces: true },
+    });
+    expect(requests).toBe(1);
+    expect(result).not.toBeNull();
+    expect(result.text).toContain("# %% One\r\nfirst = 1\r\n# %% Two\r\nlast = 2\r\n");
+    expect(result.isCurrent()).toBe(true);
+    formatEditor.setTextInBufferRange(
+      [
+        [1, 0],
+        [1, 0],
+      ],
+      "changed = 3\r\n",
+    );
+    expect(result.isCurrent()).toBe(false);
+  });
+
   it("retains native notebook Python under %%time while excluding Markdown", async () => {
     await client.start();
     const uri = fileUri(path.join(rootPath, "notebook.ipynb"));
