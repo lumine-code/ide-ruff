@@ -2,10 +2,16 @@ const path = require("path");
 const { Range, TextBuffer } = require("lumine");
 
 describe("Ruff adapter with the real IPython AST projection", () => {
-  let editor, main, adapter, registration, adapterRegistration;
+  let editor, main, adapter, registration, adapterRegistration, applyFormatResult;
   beforeEach(async () => {
     jasmine.useRealClock();
     await lumine.packages.activatePackage(path.resolve(__dirname, "..", "..", "language-ipython"));
+    const formatPackage = await lumine.packages.activatePackage(
+      path.resolve(__dirname, "..", "..", "code-format"),
+    );
+    ({ applyEdits: applyFormatResult } = require(
+      path.join(formatPackage.path, "lib", "apply-edits"),
+    ));
     main = (await lumine.packages.activatePackage(path.resolve(__dirname, ".."))).mainModule;
     registration = main.consumeIpythonSource(
       lumine.packages.getActivePackage("language-ipython").mainModule.provideIPythonSource(),
@@ -23,10 +29,11 @@ describe("Ruff adapter with the real IPython AST projection", () => {
     lumine.grammars.assignLanguageMode(editor.getBuffer(), "source.python.ipy");
     await editor.whenGrammarSettled();
   });
-  afterEach(() => {
+  afterEach(async () => {
     registration.dispose();
     adapterRegistration.dispose();
     editor.destroy();
+    await lumine.packages.deactivatePackage("code-format");
   });
   it("shares the real Python-only text and restores magics through safe formatting blocks", async () => {
     const source = editor.getText();
@@ -122,11 +129,10 @@ describe("Ruff adapter with the real IPython AST projection", () => {
     expect(opened).toBe(1);
     expect(requests).toBe(1);
     expect(nativeDiff).not.toHaveBeenCalled();
-    expect(new Set(edits.map((edit) => edit.oldRange.start.row)).size).toBe(1000);
-    editor.transact(() => {
-      for (const edit of edits.sort((a, b) => b.oldRange.start.compare(a.oldRange.start)))
-        editor.setTextInBufferRange(edit.oldRange, edit.newText);
-    });
+    expect(new Set(edits.edits.map((edit) => edit.oldRange.start.row)).size).toBe(1000);
+    const replacement = spyOn(editor, "setText").and.callThrough();
+    applyFormatResult(editor, edits);
+    expect(replacement).toHaveBeenCalledTimes(1);
     await editor.whenGrammarSettled();
     expect(editor.getText()).toBe(source.replaceAll("=1", " = 1"));
   });
@@ -166,20 +172,11 @@ describe("Ruff adapter with the real IPython AST projection", () => {
       options: {},
     });
     expect(diff).toHaveBeenCalledTimes(1);
-    editor.transact(() => {
-      for (const edit of edits.toSorted((a, b) => b.oldRange.start.compare(a.oldRange.start)))
-        editor.setTextInBufferRange(edit.oldRange, edit.newText);
-    });
-    const reference = lumine.workspace.buildTextEditor();
-    try {
-      reference.setText(source);
-      reference.setSelectedBufferRanges([new Range([0, 0], [0, 7]), new Range([1, 9], [1, 15])]);
-      reference.getSelections()[1].setBufferRange(new Range([1, 9], [1, 15]), { reversed: true });
-      reference.getBuffer().setTextViaDiff(source.replaceAll("=", " = "));
-      expect(editor.getSelectedBufferRanges()).toEqual(reference.getSelectedBufferRanges());
-    } finally {
-      reference.destroy();
-    }
+    applyFormatResult(editor, edits);
+    expect(editor.getSelections().map((selection) => selection.getText())).toEqual([
+      "#%% One",
+      "chosen ",
+    ]);
     expect(editor.getSelections()[1].isReversed()).toBe(true);
     expect(editor.getText()).toBe(source.replaceAll("=", " = "));
     editor.undo();
