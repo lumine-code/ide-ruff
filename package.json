@@ -30,6 +30,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
+  "specPackages": [
+    "language-ipython",
+    "code-format"
+  ],
   "consumedServices": {
     "ipython.source": {
       "versions": {

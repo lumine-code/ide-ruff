@@ -135,7 +135,7 @@ liveSuite("ide-ruff native server", () => {
   });
 
   it("formats canonical cells through the real host URI with one request and exact headers", async () => {
-    await lumine.packages.activatePackage(path.resolve(__dirname, "..", "..", "language-ipython"));
+    await lumine.packages.activatePackage("language-ipython");
     projectionRegistration = main.consumeIpythonSource(
       lumine.packages.getActivePackage("language-ipython").mainModule.provideIPythonSource(),
     );
@@ -237,7 +237,7 @@ liveSuite("ide-ruff native server", () => {
   });
 
   it("formats actual AST blocks through the configured Ruff session without changing magic or raw source", async () => {
-    await lumine.packages.activatePackage(path.resolve(__dirname, "..", "..", "language-ipython"));
+    await lumine.packages.activatePackage("language-ipython");
     projectionRegistration = main.consumeIpythonSource(
       lumine.packages.getActivePackage("language-ipython").mainModule.provideIPythonSource(),
     );
@@ -285,7 +285,7 @@ liveSuite("ide-ruff native server", () => {
   });
 
   it("formats a multi-cell batch with the real server and retains docstrings, imports and opaque bytes", async () => {
-    await lumine.packages.activatePackage(path.resolve(__dirname, "..", "..", "language-ipython"));
+    await lumine.packages.activatePackage("language-ipython");
     projectionRegistration = main.consumeIpythonSource(
       lumine.packages.getActivePackage("language-ipython").mainModule.provideIPythonSource(),
     );
@@ -343,7 +343,7 @@ liveSuite("ide-ruff native server", () => {
   });
 
   it("analyzes one Python document across cells without linting Markdown fences or raw bodies", async () => {
-    await lumine.packages.activatePackage(path.resolve(__dirname, "..", "..", "language-ipython"));
+    await lumine.packages.activatePackage("language-ipython");
     projectionRegistration = main.consumeIpythonSource(
       lumine.packages.getActivePackage("language-ipython").mainModule.provideIPythonSource(),
     );

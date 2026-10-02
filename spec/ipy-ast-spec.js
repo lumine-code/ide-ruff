@@ -5,10 +5,8 @@ describe("Ruff adapter with the real IPython AST projection", () => {
   let editor, main, adapter, registration, adapterRegistration, applyFormatResult;
   beforeEach(async () => {
     jasmine.useRealClock();
-    await lumine.packages.activatePackage(path.resolve(__dirname, "..", "..", "language-ipython"));
-    const formatPackage = await lumine.packages.activatePackage(
-      path.resolve(__dirname, "..", "..", "code-format"),
-    );
+    await lumine.packages.activatePackage("language-ipython");
+    const formatPackage = await lumine.packages.activatePackage("code-format");
     ({ applyEdits: applyFormatResult } = require(
       path.join(formatPackage.path, "lib", "apply-edits"),
     ));
@@ -30,9 +28,9 @@ describe("Ruff adapter with the real IPython AST projection", () => {
     await editor.whenGrammarSettled();
   });
   afterEach(async () => {
-    registration.dispose();
-    adapterRegistration.dispose();
-    editor.destroy();
+    registration?.dispose();
+    adapterRegistration?.dispose();
+    editor?.destroy();
     await lumine.packages.deactivatePackage("code-format");
   });
   it("shares the real Python-only text and restores magics through safe formatting blocks", async () => {
