@@ -519,4 +519,52 @@ describe("Ruff project scanner", () => {
     expect(coordinator.dispose).toHaveBeenCalledTimes(1);
     expect(delegate.setAllMessages).toHaveBeenCalledWith(messages, undefined, notebookSnapshots);
   });
+
+  it("retains notebook invalidations before the IDE edge disappears or reconnects", () => {
+    const messages = [{ location: { file: "changed.ipynb", cell: 1 } }];
+    scanner.messages = messages;
+    main.publishScanMessages(messages);
+    let valid = messages;
+    const coordinator = {
+      getMessages: () => valid,
+      setAllMessages: jasmine.createSpy("coordinator publish"),
+      dispose: jasmine.createSpy("dispose coordinator"),
+    };
+    const service = {
+      registerAdapter: () => ({ dispose() {} }),
+      createProjectDiagnostics: () => coordinator,
+    };
+    const edge = main.consumeIdeClient(service);
+    valid = [];
+    edge.dispose();
+    expect(main.scanMessages).toEqual([]);
+    expect(scanner.messages).toEqual([]);
+    expect(delegate.setAllMessages.calls.mostRecent().args[0]).toEqual([]);
+    const nextEdge = main.consumeIdeClient(service);
+    expect(coordinator.setAllMessages.calls.mostRecent().args[0]).toEqual([]);
+    nextEdge.dispose();
+  });
+
+  it("retains notebook invalidations when the scan registry is replaced", () => {
+    const messages = [{ location: { file: "changed.ipynb", cell: 1 } }];
+    scanner.messages = messages;
+    main.publishScanMessages(messages);
+    let valid = messages;
+    const edge = main.consumeIdeClient({
+      registerAdapter: () => ({ dispose() {} }),
+      createProjectDiagnostics: () => ({
+        getMessages: () => valid,
+        setAllMessages() {},
+        dispose() {},
+      }),
+    });
+    valid = [];
+    registration.dispose();
+    expect(main.scanMessages).toEqual([]);
+    const nextDelegate = { dispose() {}, setAllMessages: jasmine.createSpy("next publish") };
+    registration = main.consumeLinterRegistry(() => nextDelegate);
+    expect(main.ensureProjectScanner().messages).toEqual([]);
+    edge.dispose();
+    expect(nextDelegate.setAllMessages.calls.mostRecent().args[0]).toEqual([]);
+  });
 });
