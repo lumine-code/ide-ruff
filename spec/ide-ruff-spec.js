@@ -252,6 +252,33 @@ describe("ide-ruff adapter", () => {
     provider.dispose();
     disposable.dispose();
   });
+
+  it("uses Python selected for an IPython filename without requesting its projection", () => {
+    const { adapter, disposable } = registerAdapter();
+    lumine.config.set("ide-ruff.useNoqa", true);
+    const editor = {
+      getGrammar: () => ({ scopeName: "source.python" }),
+      getPath: () => "mixed.ipy",
+      scopeDescriptorForBufferPosition: () => ({ getScopesArray: () => ["source.python"] }),
+    };
+    expect(adapter.needsDocumentTransform(editor)).toBe(false);
+    expect(adapter.isFeatureAvailable("format", editor)).toBe(true);
+    expect(adapter.transformDocumentText("value = 1\n", { editor })).toBe("value = 1\n");
+    disposable.dispose();
+  });
+
+  it("uses root scopes before falling back to an unclassified IPython filename", () => {
+    const { adapter, disposable } = registerAdapter();
+    lumine.config.set("ide-ruff.useNoqa", true);
+    const scoped = (scopes) => ({
+      getRootScopeDescriptor: () => ({ getScopesArray: () => scopes }),
+      getPath: () => "mixed.ipy",
+    });
+    expect(adapter.needsDocumentTransform(scoped(["source.python"]))).toBe(false);
+    expect(adapter.needsDocumentTransform(scoped(["source.python.ipy"]))).toBe(true);
+    expect(adapter.needsDocumentTransform({ getPath: () => "mixed.ipy" })).toBe(true);
+    disposable.dispose();
+  });
 });
 
 describe("ide-ruff source transforms", () => {
