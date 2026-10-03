@@ -112,9 +112,12 @@ describe("Ruff project scanner", () => {
     expect(calls[1].args).toContain(path.join(directory, "ruff.toml"));
     expect(scanner.messages.length).toBe(2);
     expect(scanner.messages[1].location.cell).toBe(2);
-    expect(delegate.setAllMessages).toHaveBeenCalledWith(scanner.messages, {
-      showProjectView: true,
-    });
+    expect(scanner.notebookSnapshots.get(notebook)).toBe(await fs.readFile(notebook, "utf8"));
+    expect(delegate.setAllMessages).toHaveBeenCalledWith(
+      scanner.messages,
+      { showProjectView: true },
+      scanner.notebookSnapshots,
+    );
   });
 
   it("maps raw Unicode columns against each Python or notebook cell snapshot", () => {
@@ -144,6 +147,39 @@ describe("Ruff project scanner", () => {
       [0, 25],
     ]);
     expect(messages[1].location.cell).toBe(2);
+  });
+
+  it("rejects notebook findings and their snapshots when the disk changes during Ruff", async () => {
+    const notebook = path.join(directory, "changed.ipynb");
+    const source = JSON.stringify({ cells: [{ cell_type: "code", source: ["value\n"] }] });
+    await fs.writeFile(notebook, source);
+    fakeRuff(async ({ args }) => {
+      if (args.includes("--show-files")) return notebook;
+      await fs.writeFile(
+        notebook,
+        JSON.stringify({
+          cells: [
+            { cell_type: "markdown", source: ["inserted"] },
+            { cell_type: "code", source: ["value\n"] },
+          ],
+        }),
+      );
+      return JSON.stringify([
+        finding(notebook, {
+          cell: 1,
+          location: { row: 1, column: 1 },
+          end_location: { row: 1, column: 6 },
+        }),
+      ]);
+    });
+    await scanner.runScan(scanItems());
+    expect(scanner.messages).toEqual([]);
+    expect(scanner.notebookSnapshots.size).toBe(0);
+    expect(delegate.setAllMessages).toHaveBeenCalledWith(
+      [],
+      { showProjectView: true },
+      scanner.notebookSnapshots,
+    );
   });
 
   it("honors Ruff severities and the adapter's syntax-diagnostic switch", () => {
@@ -401,7 +437,8 @@ describe("Ruff project scanner", () => {
   it("aborts a scan and clears its full cache when project folders change", async () => {
     const messages = [{ location: { file: path.join(directory, "old.py") } }];
     scanner.messages = messages;
-    main.publishScanMessages(messages);
+    scanner.notebookSnapshots = new Map([["old.ipynb", "saved notebook"]]);
+    main.publishScanMessages(messages, undefined, scanner.notebookSnapshots);
     let release, began;
     const started = new Promise((resolve) => {
       began = resolve;
@@ -418,7 +455,9 @@ describe("Ruff project scanner", () => {
     lumine.project.setPaths([directory]);
     expect(calls[0].options.signal.aborted).toBe(true);
     expect(main.scanMessages).toEqual([]);
+    expect(main.scanNotebookSnapshots.size).toBe(0);
     expect(scanner.messages).toEqual([]);
+    expect(scanner.notebookSnapshots.size).toBe(0);
     expect(delegate.setAllMessages.calls.mostRecent().args[0]).toEqual([]);
     release(path.join(directory, "old.py"));
     await pending;
@@ -463,6 +502,8 @@ describe("Ruff project scanner", () => {
   it("passes cached scans to the IDE coordinator and restores raw results on edge loss", () => {
     const messages = [{ location: { file: "closed.py" } }];
     scanner.messages = messages;
+    const notebookSnapshots = new Map([["closed.ipynb", "saved notebook"]]);
+    scanner.notebookSnapshots = notebookSnapshots;
     const coordinator = {
       setAllMessages: jasmine.createSpy("coordinator publish"),
       dispose: jasmine.createSpy("dispose coordinator"),
@@ -473,9 +514,9 @@ describe("Ruff project scanner", () => {
     };
     const edge = main.consumeIdeClient(service);
     expect(service.createProjectDiagnostics).toHaveBeenCalledWith("ide-ruff", delegate);
-    expect(coordinator.setAllMessages).toHaveBeenCalledWith(messages, undefined);
+    expect(coordinator.setAllMessages).toHaveBeenCalledWith(messages, undefined, notebookSnapshots);
     edge.dispose();
     expect(coordinator.dispose).toHaveBeenCalledTimes(1);
-    expect(delegate.setAllMessages).toHaveBeenCalledWith(messages, undefined);
+    expect(delegate.setAllMessages).toHaveBeenCalledWith(messages, undefined, notebookSnapshots);
   });
 });
