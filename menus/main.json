@@ -1,0 +1,16 @@
+{
+  "menu": [
+    {
+      "label": "Packages",
+      "submenu": [
+        {
+          "label": "IDE Ruff",
+          "submenu": [
+            { "label": "Lint Projects", "command": "ide-ruff:lint-projects" },
+            { "label": "Lint Selected", "command": "ide-ruff:lint-selected" }
+          ]
+        }
+      ]
+    }
+  ]
+}

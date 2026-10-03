@@ -1,0 +1,481 @@
+const fs = require("fs").promises;
+const path = require("path");
+const os = require("os");
+const { Point } = require("lumine");
+
+describe("Ruff project scanner", () => {
+  let main, scanner, directory, delegate, registration, editor;
+  beforeEach(async () => {
+    jasmine.useRealClock();
+    main = (await lumine.packages.activatePackage(path.resolve(__dirname, ".."))).mainModule;
+    directory = await fs.mkdtemp(path.join(os.tmpdir(), "ide-ruff-scan-"));
+    delegate = {
+      dispose: jasmine.createSpy("dispose delegate"),
+      setAllMessages: jasmine.createSpy("publish"),
+    };
+    registration = main.consumeLinterRegistry(() => delegate);
+    delegate.setAllMessages.calls.reset();
+    scanner = main.ensureProjectScanner();
+    spyOn(main, "resolveScanServer").and.resolveTo({ command: "ruff" });
+  });
+  afterEach(async () => {
+    editor?.destroy();
+    editor = null;
+    registration?.dispose();
+    registration = null;
+    await lumine.packages.deactivatePackage("ide-ruff");
+    await fs.rm(directory, { force: true, recursive: true });
+  });
+
+  const finding = (filename, extras = {}) => ({
+    filename,
+    code: "F821",
+    message: "Undefined name",
+    location: { row: 4, column: 1 },
+    end_location: { row: 4, column: 6 },
+    ...extras,
+  });
+  function projection(source, extras = {}) {
+    return {
+      source,
+      text: "# %% [markdown]\n                 \n# %%\nvalue\n",
+      isCurrent: () => true,
+      fromCodePointPosition: (point) => point,
+      fromServerRange: (range) => range,
+      isPythonRange: (range) => range.start.row === 3,
+      dispose: jasmine.createSpy("dispose projection"),
+      ...extras,
+    };
+  }
+  function fakeRuff(reply) {
+    const calls = [];
+    main.execFile = (command, args, options, callback) => {
+      const call = { command, args, options, text: undefined };
+      calls.push(call);
+      queueMicrotask(async () => {
+        try {
+          callback(null, await reply(call), "");
+        } catch (error) {
+          callback(error, "", error.message);
+        }
+      });
+      return {
+        stdin: {
+          end(text) {
+            call.text = text;
+          },
+        },
+      };
+    };
+    return calls;
+  }
+  function scanItems() {
+    return [{ projectPath: directory, targetPaths: [directory] }];
+  }
+
+  it("scans discovered files and notebook cells without enabling autofix", async () => {
+    const python = path.join(directory, "file.py");
+    const notebook = path.join(directory, "book.ipynb");
+    await fs.writeFile(python, "\n\n\nvalue\n");
+    await fs.writeFile(
+      notebook,
+      JSON.stringify({
+        cells: [
+          { cell_type: "markdown", source: ["heading"] },
+          { cell_type: "code", source: ["\n\n\nvalue\n"] },
+        ],
+      }),
+    );
+    lumine.config.set("ide-ruff.features.diagnostics", false);
+    lumine.config.set("ide-ruff.lint.select", ["F"]);
+    lumine.config.set("ide-ruff.lint.extendSelect", ["B"]);
+    lumine.config.set("ide-ruff.lint.ignore", ["F401"]);
+    lumine.config.set("ide-ruff.useNoqa", false);
+    lumine.config.set("ide-ruff.configuration", path.join(directory, "ruff.toml"));
+    lumine.config.set("ide-ruff.lineLength", 110);
+    const calls = fakeRuff(({ args }) =>
+      args.includes("--show-files")
+        ? [python, notebook].join("\n")
+        : JSON.stringify([finding(python), finding(notebook, { cell: 2 })]),
+    );
+    await scanner.runScan(scanItems());
+    expect(calls.length).toBe(2);
+    expect(calls[1].args).toContain(python);
+    expect(calls[1].args).toContain(notebook);
+    expect(calls[1].args).toContain("--no-fix");
+    expect(calls[1].args).toContain("--no-fix-only");
+    expect(calls[1].args).toContain("--ignore-noqa");
+    expect(calls[1].args).toContain('lint.select = ["F"]');
+    expect(calls[1].args).toContain('lint.extend-select = ["B"]');
+    expect(calls[1].args).toContain('lint.ignore = ["F401"]');
+    expect(calls[1].args).toContain("line-length = 110");
+    expect(calls[1].args).toContain(path.join(directory, "ruff.toml"));
+    expect(scanner.messages.length).toBe(2);
+    expect(scanner.messages[1].location.cell).toBe(2);
+    expect(delegate.setAllMessages).toHaveBeenCalledWith(scanner.messages, {
+      showProjectView: true,
+    });
+  });
+
+  it("maps raw Unicode columns against each Python or notebook cell snapshot", () => {
+    const source = 'text = "😀"; missing_name\n';
+    const notebook = JSON.stringify({
+      cells: [
+        { cell_type: "markdown", source: ["heading"] },
+        { cell_type: "code", source: [source] },
+      ],
+    });
+    const positions = { location: { row: 1, column: 13 }, end_location: { row: 1, column: 25 } };
+    const messages = scanner.rawMessages(
+      [finding("unicode.py", positions), finding("unicode.ipynb", { ...positions, cell: 2 })],
+      new Map([
+        ["unicode.py", source],
+        ["unicode.ipynb", notebook],
+      ]),
+      main.scanSettings(),
+    );
+    expect(messages.length).toBe(2);
+    expect(messages[0].location.position).toEqual([
+      [0, 13],
+      [0, 25],
+    ]);
+    expect(messages[1].location.position).toEqual([
+      [0, 13],
+      [0, 25],
+    ]);
+    expect(messages[1].location.cell).toBe(2);
+  });
+
+  it("honors Ruff severities and the adapter's syntax-diagnostic switch", () => {
+    const settings = main.scanSettings();
+    expect(
+      scanner.message("sample.py", finding("sample.py", { severity: "warning" }), settings)
+        .severity,
+    ).toBe("warning");
+    expect(
+      scanner.message("sample.py", finding("sample.py", { code: "invalid-syntax" }), {
+        ...settings,
+        showSyntaxErrors: false,
+      }),
+    ).toBeNull();
+  });
+
+  it("uses the selected Ruff executable and never rewrites Python or notebook files", async () => {
+    const serverPath = process.env.RUFF_PATH || require("../lib/server").findOnPath("ruff");
+    if (!serverPath) {
+      pending("Ruff is not installed");
+      return;
+    }
+    main.resolveScanServer.and.callThrough();
+    main.execFile = require("child_process").execFile;
+    lumine.config.set("ide-ruff.serverPath", serverPath);
+    lumine.config.set("ide-ruff.lint.select", ["F401", "F821"]);
+    const python = path.join(directory, "unicode.py");
+    const notebook = path.join(directory, "unicode.ipynb");
+    const source = 'import os\ntext = "😀"; missing_name\n';
+    const notebookSource = JSON.stringify({
+      cells: [
+        { cell_type: "markdown", metadata: {}, source: ["heading"] },
+        {
+          cell_type: "code",
+          metadata: {},
+          source: source.split(/(?<=\n)/),
+          outputs: [],
+          execution_count: null,
+        },
+      ],
+      metadata: { language_info: { name: "python" } },
+      nbformat: 4,
+      nbformat_minor: 5,
+    });
+    await fs.writeFile(python, source);
+    await fs.writeFile(notebook, notebookSource);
+    await fs.writeFile(path.join(directory, "ruff.toml"), "fix = true\n");
+    await scanner.runScan(scanItems());
+    expect(await fs.readFile(python, "utf8")).toBe(source);
+    expect(await fs.readFile(notebook, "utf8")).toBe(notebookSource);
+    const undefinedNames = scanner.messages.filter((message) =>
+      message.excerpt.startsWith("F821:"),
+    );
+    expect(undefinedNames.length).toBe(2);
+    for (const message of undefinedNames)
+      expect(message.location.position).toEqual([
+        [1, 13],
+        [1, 25],
+      ]);
+    expect(undefinedNames.find((message) => message.location.file === notebook).location.cell).toBe(
+      2,
+    );
+  });
+
+  it("projects closed IPython files serially and uses the open buffer snapshot", async () => {
+    const first = path.join(directory, "first.ipy");
+    const second = path.join(directory, "second.ipy");
+    const openPath = path.join(directory, "open.ipy");
+    const source = "# %% [markdown]\n# Literal heading\n# %%\nvalue\n";
+    await fs.writeFile(first, source);
+    await fs.writeFile(second, source);
+    editor = await lumine.workspace.open(openPath);
+    editor.setText(source);
+    let active = 0,
+      maximum = 0;
+    const closed = [];
+    const snapshots = [];
+    const project = jasmine.createSpy("project open").and.callFake(async () => projection(source));
+    const service = main.consumeIpythonSource({
+      isApplicable: () => true,
+      project,
+      async projectText(text, { filePath }) {
+        closed.push(filePath);
+        const value = projection(text);
+        snapshots.push(value);
+        active++;
+        maximum = Math.max(maximum, active);
+        await Promise.resolve();
+        active--;
+        return value;
+      },
+    });
+    const calls = fakeRuff(({ args }) =>
+      args.includes("--show-files")
+        ? [first, openPath, second, first].join("\n")
+        : JSON.stringify([
+            finding(args.find((arg) => arg.startsWith("--stdin-filename=")).slice(17)),
+          ]),
+    );
+    await scanner.runScan(scanItems());
+    expect(closed).toEqual([first, second]);
+    expect(maximum).toBe(1);
+    expect(project).toHaveBeenCalled();
+    expect(project.calls.mostRecent().args[0]).toBe(editor);
+    expect(calls.length).toBe(4);
+    for (const call of calls.slice(1)) {
+      expect(call.text).toBe(projection(source).text);
+      expect(call.args).toContain("--extension=ipy:python");
+      expect(call.text).not.toContain("Literal heading");
+    }
+    for (const snapshot of snapshots) expect(snapshot.dispose).toHaveBeenCalledTimes(1);
+    expect(scanner.messages.length).toBe(3);
+    expect(editor.getText()).toBe(source);
+    service.dispose();
+  });
+
+  it("maps projected codepoint positions and drops findings in protected source", () => {
+    const convert = jasmine
+      .createSpy("codepoints")
+      .and.callFake((point) => new Point(point.row, point.column + 1));
+    const value = projection("source", { fromCodePointPosition: convert });
+    const messages = scanner.projectedMessages(
+      "mixed.ipy",
+      [
+        finding("mixed.ipy"),
+        finding("mixed.ipy", {
+          location: { row: 2, column: 1 },
+          end_location: { row: 2, column: 5 },
+        }),
+      ],
+      value,
+      main.scanSettings(),
+    );
+    expect(messages.length).toBe(1);
+    expect(messages[0].location.position).toEqual([
+      [3, 1],
+      [3, 6],
+    ]);
+    expect(convert).toHaveBeenCalledTimes(4);
+  });
+
+  it("disposes closed snapshots and rejects results when the disk source changes", async () => {
+    const filePath = path.join(directory, "closed.ipy");
+    await fs.writeFile(filePath, "before");
+    const value = projection("before");
+    const service = main.consumeIpythonSource({ projectText: async () => value });
+    fakeRuff(async () => {
+      await fs.writeFile(filePath, "changed on disk");
+      return JSON.stringify([finding(filePath)]);
+    });
+    const controller = new AbortController();
+    expect(
+      await scanner.scanIpython(filePath, "ruff", [], main.scanSettings(), controller.signal),
+    ).toEqual([]);
+    expect(value.dispose).toHaveBeenCalledTimes(1);
+    expect(await fs.readFile(filePath, "utf8")).toBe("changed on disk");
+    service.dispose();
+  });
+
+  it("rejects open IPython results after edits, Save As or cancellation", async () => {
+    editor = await lumine.workspace.open(path.join(directory, "open.ipy"));
+    editor.setText("value\n");
+    const service = main.consumeIpythonSource({
+      isApplicable: () => true,
+      project: async () => projection(editor.getText()),
+    });
+    for (const change of [
+      () => editor.setText("changed"),
+      () => editor.getBuffer().setPath(path.join(directory, "renamed.ipy")),
+    ]) {
+      fakeRuff(() => {
+        change();
+        return JSON.stringify([finding(editor.getPath())]);
+      });
+      const controller = new AbortController();
+      expect(
+        await scanner.scanIpython(
+          editor.getPath(),
+          "ruff",
+          [],
+          main.scanSettings(),
+          controller.signal,
+        ),
+      ).toEqual([]);
+    }
+    const controller = new AbortController();
+    fakeRuff(() => {
+      controller.abort();
+      return "[]";
+    });
+    expect(
+      await scanner.scanIpython(
+        editor.getPath(),
+        "ruff",
+        [],
+        main.scanSettings(),
+        controller.signal,
+      ),
+    ).toEqual([]);
+    service.dispose();
+  });
+
+  it("never sends mixed IPython source when the projection service is absent", async () => {
+    main.ipythonSource = null;
+    const calls = fakeRuff(() => "[]");
+    expect(
+      await scanner.scanIpython(
+        "absent.ipy",
+        "ruff",
+        [],
+        main.scanSettings(),
+        new AbortController().signal,
+      ),
+    ).toEqual([]);
+    expect(calls.length).toBe(0);
+  });
+
+  it("stops an in-flight process and publishes nothing after registry disposal", async () => {
+    let release, began;
+    const started = new Promise((resolve) => {
+      began = resolve;
+    });
+    const waiting = new Promise((resolve) => {
+      release = resolve;
+    });
+    const calls = fakeRuff(() => {
+      began();
+      return waiting;
+    });
+    const pending = scanner.runScan(scanItems());
+    await started;
+    registration.dispose();
+    release(path.join(directory, "file.py"));
+    await pending;
+    expect(calls[0].options.signal.aborted).toBe(true);
+    expect(delegate.setAllMessages).not.toHaveBeenCalled();
+    expect(delegate.dispose).toHaveBeenCalled();
+    expect(scanner.controller).toBeNull();
+  });
+
+  it("reports failed processes and retains the preceding successful scan", async () => {
+    scanner.messages = [{ location: { file: "old.py" } }];
+    const notify = spyOn(lumine.notifications, "addError");
+    main.execFile = (_command, _args, _options, callback) => {
+      queueMicrotask(() =>
+        callback(Object.assign(new Error("failed"), { code: 2 }), "", "invalid config"),
+      );
+    };
+    await scanner.runScan(scanItems());
+    expect(notify).toHaveBeenCalledWith("Ruff project scan failed", { detail: "invalid config" });
+    expect(scanner.messages).toEqual([{ location: { file: "old.py" } }]);
+    expect(delegate.setAllMessages).not.toHaveBeenCalled();
+  });
+
+  it("aborts a scan and clears its full cache when project folders change", async () => {
+    const messages = [{ location: { file: path.join(directory, "old.py") } }];
+    scanner.messages = messages;
+    main.publishScanMessages(messages);
+    let release, began;
+    const started = new Promise((resolve) => {
+      began = resolve;
+    });
+    const waiting = new Promise((resolve) => {
+      release = resolve;
+    });
+    const calls = fakeRuff(() => {
+      began();
+      return waiting;
+    });
+    const pending = scanner.runScan(scanItems());
+    await started;
+    lumine.project.setPaths([directory]);
+    expect(calls[0].options.signal.aborted).toBe(true);
+    expect(main.scanMessages).toEqual([]);
+    expect(scanner.messages).toEqual([]);
+    expect(delegate.setAllMessages.calls.mostRecent().args[0]).toEqual([]);
+    release(path.join(directory, "old.py"));
+    await pending;
+    expect(delegate.setAllMessages.calls.mostRecent().args[0]).toEqual([]);
+    expect(main.ensureProjectScanner()).not.toBe(scanner);
+  });
+
+  it("groups existing tree selections by project and rejects empty selections", async () => {
+    const other = path.join(directory, "other");
+    await fs.mkdir(other);
+    const first = path.join(directory, "file.py");
+    const second = path.join(other, "file.py");
+    await fs.writeFile(first, "x");
+    await fs.writeFile(second, "x");
+    lumine.project.setPaths([other, directory]);
+    const service = main.consumeTreeViewSelection({
+      selectedPaths: () => [first, second, first, path.join(directory, "missing")],
+    });
+    expect(await scanner.selectedScanItems()).toEqual([
+      { projectPath: directory, targetPaths: [first] },
+      { projectPath: other, targetPaths: [second] },
+    ]);
+    service.dispose();
+    const notify = spyOn(lumine.notifications, "addWarning");
+    await scanner.runSelectedScan();
+    expect(notify).toHaveBeenCalled();
+  });
+
+  it("clears busy progress when a scan finishes or its service disappears", async () => {
+    const busy = { add: jasmine.createSpy("busy add"), dispose: jasmine.createSpy("busy dispose") };
+    const service = main.consumeBusySignal({ create: () => busy });
+    fakeRuff(() => "");
+    await scanner.runScan(scanItems());
+    expect(busy.add).toHaveBeenCalledWith("Scanning project with Ruff");
+    expect(busy.dispose).toHaveBeenCalledTimes(1);
+    scanner.busyProvider = busy;
+    service.dispose();
+    expect(busy.dispose).toHaveBeenCalledTimes(2);
+    expect(main.busySignal).toBeNull();
+  });
+
+  it("passes cached scans to the IDE coordinator and restores raw results on edge loss", () => {
+    const messages = [{ location: { file: "closed.py" } }];
+    scanner.messages = messages;
+    const coordinator = {
+      setAllMessages: jasmine.createSpy("coordinator publish"),
+      dispose: jasmine.createSpy("dispose coordinator"),
+    };
+    const service = {
+      registerAdapter: () => ({ dispose() {} }),
+      createProjectDiagnostics: jasmine.createSpy("coordinate").and.returnValue(coordinator),
+    };
+    const edge = main.consumeIdeClient(service);
+    expect(service.createProjectDiagnostics).toHaveBeenCalledWith("ide-ruff", delegate);
+    expect(coordinator.setAllMessages).toHaveBeenCalledWith(messages, undefined);
+    edge.dispose();
+    expect(coordinator.dispose).toHaveBeenCalledTimes(1);
+    expect(delegate.setAllMessages).toHaveBeenCalledWith(messages, undefined);
+  });
+});

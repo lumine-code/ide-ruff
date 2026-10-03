@@ -53,7 +53,10 @@ describe("ide-ruff package assets", () => {
 
   it("consumes the language-server service and ships no runtime dependencies", () => {
     expect(pkg.consumedServices["ide-client"].versions["^1.0.0"]).toBe("consumeIdeClient");
-    expect(pkg.providedServices).toBeUndefined();
+    expect(pkg.providedServices["linter.provider"]).toBeUndefined();
+    expect(pkg.providedServices["background-tips.provider"].versions["1.0.0"]).toBe(
+      "provideBackgroundTips",
+    );
     expect(pkg.dependencies).toBeUndefined();
     expect(readme).toContain("- `ide-client`: consumed to");
   });

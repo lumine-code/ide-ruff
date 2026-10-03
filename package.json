@@ -22,6 +22,7 @@
   "main": "./lib/main",
   "files": [
     "lib",
+    "menus",
     "spec"
   ],
   "scripts": {
@@ -34,6 +35,13 @@
     "language-ipython",
     "code-format"
   ],
+  "providedServices": {
+    "background-tips.provider": {
+      "versions": {
+        "1.0.0": "provideBackgroundTips"
+      }
+    }
+  },
   "consumedServices": {
     "ipython.source": {
       "versions": {
@@ -43,6 +51,21 @@
     "ide-client": {
       "versions": {
         "^1.0.0": "consumeIdeClient"
+      }
+    },
+    "linter.registry": {
+      "versions": {
+        "^1.0.0": "consumeLinterRegistry"
+      }
+    },
+    "busy-signal": {
+      "versions": {
+        "^1.0.0": "consumeBusySignal"
+      }
+    },
+    "tree-view.selection": {
+      "versions": {
+        "^1.0.0": "consumeTreeViewSelection"
       }
     }
   },
@@ -112,7 +135,7 @@
     },
     "configurationPreference": {
       "title": "Configuration Preference",
-      "description": "Which wins when these settings and a discovered `ruff.toml` or `pyproject.toml` disagree.",
+      "description": "Which wins for the language server when these settings and a discovered `ruff.toml` or `pyproject.toml` disagree. Manual project scans use Ruff's CLI configuration rules.",
       "type": "string",
       "enum": [
         "editorFirst",
