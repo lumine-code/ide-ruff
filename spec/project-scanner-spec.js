@@ -33,11 +33,12 @@ describe("Ruff project scanner", () => {
   it("uses the client's resolver for the scanner's managed executable", async () => {
     main.resolveScanServer.and.callThrough();
     const managed = { binaryPath: process.execPath, version: "test-version" };
+    const managedServer = jasmine.createSpy("managed installation").and.returnValue(managed);
     const getServerResolver = jasmine.createSpy("get resolver").and.returnValue(resolver);
     const edge = main.consumeIdeClient({
       registerAdapter: () => ({ dispose() {} }),
       getServerResolver,
-      managedServer: () => managed,
+      managedServer,
     });
     spyOn(resolver, "select").and.resolveTo({
       path: process.execPath,
@@ -52,12 +53,47 @@ describe("Ruff project scanner", () => {
         version: managed.version,
       });
       expect(getServerResolver).toHaveBeenCalledTimes(1);
+      expect(managedServer).not.toHaveBeenCalled();
       const request = resolver.select.calls.mostRecent().args[0];
-      expect(request.managedPath).toBe(managed.binaryPath);
-      expect(request.managedVersion).toBe(managed.version);
+      expect(await request.managed()).toEqual({
+        path: managed.binaryPath,
+        version: managed.version,
+      });
+      expect(managedServer).toHaveBeenCalledOnceWith("ide-ruff");
     } finally {
       edge.dispose();
     }
+  });
+
+  it("uses a configured scanner executable without reading a damaged managed installation", async () => {
+    main.resolveScanServer.and.callThrough();
+    const managedServer = jasmine
+      .createSpy("managed installation")
+      .and.throwError("Damaged installation");
+    resolverRegistration = main.consumeIdeClient({
+      registerAdapter: () => ({ dispose() {} }),
+      getServerResolver: () => resolver,
+      managedServer,
+    });
+    lumine.config.set("ide-ruff.serverPath", process.execPath);
+    const launch = await main.resolveScanServer();
+    expect(launch.command).toBe(process.execPath);
+    expect(managedServer).not.toHaveBeenCalled();
+  });
+
+  it("reports managed corruption when the scanner has no configured executable", async () => {
+    main.resolveScanServer.and.callThrough();
+    const managedServer = jasmine
+      .createSpy("managed installation")
+      .and.throwError("Damaged installation");
+    resolverRegistration = main.consumeIdeClient({
+      registerAdapter: () => ({ dispose() {} }),
+      getServerResolver: () => resolver,
+      managedServer,
+    });
+    lumine.config.set("ide-ruff.serverPath", "");
+    await expectAsync(main.resolveScanServer()).toBeRejectedWithError("Damaged installation");
+    expect(managedServer).toHaveBeenCalledOnceWith("ide-ruff");
   });
 
   it("explains a missing client before trying a project scan", async () => {
