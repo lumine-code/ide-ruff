@@ -1,10 +1,11 @@
+const { resolver } = require("./helpers/server-resolver");
 const fs = require("fs").promises;
 const path = require("path");
 const os = require("os");
 const { Point } = require("lumine");
 
 describe("Ruff project scanner", () => {
-  let main, scanner, directory, delegate, registration, editor;
+  let main, scanner, directory, delegate, registration, editor, resolverRegistration;
   beforeEach(async () => {
     jasmine.useRealClock();
     main = (await lumine.packages.activatePackage(path.resolve(__dirname, ".."))).mainModule;
@@ -23,8 +24,50 @@ describe("Ruff project scanner", () => {
     editor = null;
     registration?.dispose();
     registration = null;
+    resolverRegistration?.dispose();
+    resolverRegistration = null;
     await lumine.packages.deactivatePackage("ide-ruff");
     await fs.rm(directory, { force: true, recursive: true });
+  });
+
+  it("uses the client's resolver for the scanner's managed executable", async () => {
+    main.resolveScanServer.and.callThrough();
+    const managed = { binaryPath: process.execPath, version: "test-version" };
+    const getServerResolver = jasmine.createSpy("get resolver").and.returnValue(resolver);
+    const edge = main.consumeIdeClient({
+      registerAdapter: () => ({ dispose() {} }),
+      getServerResolver,
+      managedServer: () => managed,
+    });
+    spyOn(resolver, "select").and.resolveTo({
+      path: process.execPath,
+      kind: "executable",
+      source: "managed",
+      version: managed.version,
+    });
+    try {
+      expect(await main.resolveScanServer()).toEqual({
+        command: process.execPath,
+        args: ["server"],
+        version: managed.version,
+      });
+      expect(getServerResolver).toHaveBeenCalledTimes(1);
+      const request = resolver.select.calls.mostRecent().args[0];
+      expect(request.managedPath).toBe(managed.binaryPath);
+      expect(request.managedVersion).toBe(managed.version);
+    } finally {
+      edge.dispose();
+    }
+  });
+
+  it("explains a missing client before trying a project scan", async () => {
+    main.resolveScanServer.and.callThrough();
+    main.ideClient = null;
+    spyOn(lumine.notifications, "addWarning");
+    expect(await main.resolveScanServer()).toBeNull();
+    const [title, options] = lumine.notifications.addWarning.calls.mostRecent().args;
+    expect(title).toBe("Ruff requires ide-client");
+    expect(options.detail).toContain("Enable ide-client");
   });
 
   const finding = (filename, extras = {}) => ({
@@ -197,12 +240,18 @@ describe("Ruff project scanner", () => {
   });
 
   it("uses the selected Ruff executable and never rewrites Python or notebook files", async () => {
-    const serverPath = process.env.RUFF_PATH || require("../lib/server").findOnPath("ruff");
+    const serverPath =
+      process.env.RUFF_PATH || require("./helpers/server-resolver").findOnPath("ruff");
     if (!serverPath) {
       pending("Ruff is not installed");
       return;
     }
     main.resolveScanServer.and.callThrough();
+    resolverRegistration = main.consumeIdeClient({
+      registerAdapter: () => ({ dispose() {} }),
+      getServerResolver: () => resolver,
+      managedServer: () => null,
+    });
     main.execFile = require("child_process").execFile;
     lumine.config.set("ide-ruff.serverPath", serverPath);
     lumine.config.set("ide-ruff.lint.select", ["F401", "F821"]);

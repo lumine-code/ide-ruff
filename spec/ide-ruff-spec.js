@@ -1,5 +1,6 @@
+const { resolver, serverContext } = require("./helpers/server-resolver");
 const path = require("path");
-const { resolveServer, findOnPath, configurationArgs, assetFor } = require("../lib/server");
+const { resolveServer, configurationArgs, assetFor } = require("../lib/server");
 let main;
 const sourceTransform = require("../lib/source-transform");
 
@@ -17,32 +18,13 @@ const registerAdapter = () => {
 
 describe("ide-ruff server resolution", () => {
   it("prefers the configured path", async () => {
-    const launch = await resolveServer(process.execPath);
+    const launch = await resolveServer(serverContext(), process.execPath);
     expect(launch.command).toBe(process.execPath);
     expect(launch.args).toEqual(["server"]);
   });
-  it("finds executables on a synthetic PATH", () => {
-    const dir = path.dirname(process.execPath);
-    const name = path.basename(process.execPath, path.extname(process.execPath));
-    expect(findOnPath(name, { PATH: dir, PATHEXT: ".EXE" })).toBeTruthy();
-    expect(findOnPath("definitely-not-a-real-binary", { PATH: dir })).toBeNull();
-  });
   it("resolves to null when ruff is nowhere on PATH", async () => {
-    spyOn(require("../lib/server"), "findOnPath").and.returnValue(null);
-    expect(await resolveServer("")).toBeNull();
-  });
-  it("prefers a managed install over PATH, and the configured path over both", async () => {
-    const managed = { binaryPath: "/managed/ruff", version: "0.16.1" };
-    const launch = await resolveServer("", managed);
-    expect(launch.command).toBe("/managed/ruff");
-    expect(launch.args).toEqual(["server"]);
-    // Reported in the session details, so which copy is running is visible.
-    expect(launch.version).toBe("0.16.1");
-    expect((await resolveServer(process.execPath, managed)).command).toBe(process.execPath);
-  });
-  it("falls back to PATH once the managed install is gone", async () => {
-    spyOn(require("../lib/server"), "findOnPath").and.returnValue("/usr/bin/ruff");
-    expect((await resolveServer("", null)).command).toBe("/usr/bin/ruff");
+    spyOn(resolver, "select").and.resolveTo(null);
+    expect(await resolveServer(serverContext(), "")).toBeNull();
   });
   it("names the exact release asset for each platform it supports", () => {
     expect(assetFor({ platform: "win32", arch: "x64" })).toBe("ruff-x86_64-pc-windows-msvc.zip");
@@ -112,7 +94,7 @@ describe("ide-ruff adapter", () => {
   it("launches `ruff server` in the resolution context's root", async () => {
     const { adapter, disposable } = registerAdapter();
     lumine.config.set("ide-ruff.serverPath", process.execPath);
-    const launch = await adapter.resolveServer({ rootPath: __dirname });
+    const launch = await adapter.resolveServer(serverContext({ rootPath: __dirname }));
     expect(launch.command).toBe(process.execPath);
     expect(launch.args).toEqual(["server"]);
     expect(launch.cwd).toBe(__dirname);

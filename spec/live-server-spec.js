@@ -3,7 +3,7 @@ const os = require("os");
 const path = require("path");
 const { Range, TextBuffer } = require("lumine");
 let main;
-const { findOnPath } = require("../lib/server");
+const { findOnPath } = require("./helpers/server-resolver");
 const { LiveLspClient, fileUri } = require("./helpers/live-lsp-client");
 
 const serverPath = process.env.RUFF_PATH || findOnPath("ruff");
