@@ -20,7 +20,7 @@ liveSuite("ide-ruff native server", () => {
     rootPath = fs.mkdtempSync(path.join(os.tmpdir(), "ide-ruff-live-"));
     main = (await lumine.packages.activatePackage(path.resolve(__dirname, ".."))).mainModule;
     lumine.config.set("ide-ruff.serverPath", serverPath);
-    disposable = main.consumeIdeClient({
+    disposable = main.consumeIde({
       registerAdapter(registered) {
         adapter = registered;
         return { dispose() {} };

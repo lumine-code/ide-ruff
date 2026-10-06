@@ -35,7 +35,7 @@ describe("Ruff project scanner", () => {
     const managed = { binaryPath: process.execPath, version: "test-version" };
     const managedServer = jasmine.createSpy("managed installation").and.returnValue(managed);
     const getServerResolver = jasmine.createSpy("get resolver").and.returnValue(resolver);
-    const edge = main.consumeIdeClient({
+    const edge = main.consumeIde({
       registerAdapter: () => ({ dispose() {} }),
       getServerResolver,
       managedServer,
@@ -70,7 +70,7 @@ describe("Ruff project scanner", () => {
     const managedServer = jasmine
       .createSpy("managed installation")
       .and.throwError("Damaged installation");
-    resolverRegistration = main.consumeIdeClient({
+    resolverRegistration = main.consumeIde({
       registerAdapter: () => ({ dispose() {} }),
       getServerResolver: () => resolver,
       managedServer,
@@ -86,7 +86,7 @@ describe("Ruff project scanner", () => {
     const managedServer = jasmine
       .createSpy("managed installation")
       .and.throwError("Damaged installation");
-    resolverRegistration = main.consumeIdeClient({
+    resolverRegistration = main.consumeIde({
       registerAdapter: () => ({ dispose() {} }),
       getServerResolver: () => resolver,
       managedServer,
@@ -98,12 +98,12 @@ describe("Ruff project scanner", () => {
 
   it("explains a missing client before trying a project scan", async () => {
     main.resolveScanServer.and.callThrough();
-    main.ideClient = null;
+    main.ide = null;
     spyOn(lumine.notifications, "addWarning");
     expect(await main.resolveScanServer()).toBeNull();
     const [title, options] = lumine.notifications.addWarning.calls.mostRecent().args;
-    expect(title).toBe("Ruff requires ide-client");
-    expect(options.detail).toContain("Enable ide-client");
+    expect(title).toBe("Ruff requires ide");
+    expect(options.detail).toContain("Enable ide");
   });
 
   const finding = (filename, extras = {}) => ({
@@ -283,7 +283,7 @@ describe("Ruff project scanner", () => {
       return;
     }
     main.resolveScanServer.and.callThrough();
-    resolverRegistration = main.consumeIdeClient({
+    resolverRegistration = main.consumeIde({
       registerAdapter: () => ({ dispose() {} }),
       getServerResolver: () => resolver,
       managedServer: () => null,
@@ -597,7 +597,7 @@ describe("Ruff project scanner", () => {
       registerAdapter: () => ({ dispose() {} }),
       createProjectDiagnostics: jasmine.createSpy("coordinate").and.returnValue(coordinator),
     };
-    const edge = main.consumeIdeClient(service);
+    const edge = main.consumeIde(service);
     expect(service.createProjectDiagnostics).toHaveBeenCalledWith("ide-ruff", delegate);
     expect(coordinator.setAllMessages).toHaveBeenCalledWith(messages, undefined, notebookSnapshots);
     edge.dispose();
@@ -619,13 +619,13 @@ describe("Ruff project scanner", () => {
       registerAdapter: () => ({ dispose() {} }),
       createProjectDiagnostics: () => coordinator,
     };
-    const edge = main.consumeIdeClient(service);
+    const edge = main.consumeIde(service);
     valid = [];
     edge.dispose();
     expect(main.scanMessages).toEqual([]);
     expect(scanner.messages).toEqual([]);
     expect(delegate.setAllMessages.calls.mostRecent().args[0]).toEqual([]);
-    const nextEdge = main.consumeIdeClient(service);
+    const nextEdge = main.consumeIde(service);
     expect(coordinator.setAllMessages.calls.mostRecent().args[0]).toEqual([]);
     nextEdge.dispose();
   });
@@ -635,7 +635,7 @@ describe("Ruff project scanner", () => {
     scanner.messages = messages;
     main.publishScanMessages(messages);
     let valid = messages;
-    const edge = main.consumeIdeClient({
+    const edge = main.consumeIde({
       registerAdapter: () => ({ dispose() {} }),
       createProjectDiagnostics: () => ({
         getMessages: () => valid,

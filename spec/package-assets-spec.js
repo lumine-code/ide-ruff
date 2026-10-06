@@ -52,13 +52,13 @@ describe("ide-ruff package assets", () => {
   });
 
   it("consumes the language-server service and ships no runtime dependencies", () => {
-    expect(pkg.consumedServices["ide-client"].versions["^1.0.0"]).toBe("consumeIdeClient");
+    expect(pkg.consumedServices["ide"].versions["^1.0.0"]).toBe("consumeIde");
     expect(pkg.providedServices["linter.provider"]).toBeUndefined();
     expect(pkg.providedServices["background-tips.provider"].versions["1.0.0"]).toBe(
       "provideBackgroundTips",
     );
     expect(pkg.dependencies).toBeUndefined();
-    expect(readme).toContain("- `ide-client`: consumed to");
+    expect(readme).toContain("- `ide`: consumed to");
   });
 
   it("declares every setting the adapter reads, with no `order` keys", () => {

@@ -2,7 +2,7 @@
 
 Ruff language-server adapter for Python.
 
-Registers the language server built into [Ruff](https://github.com/astral-sh/ruff), started as `ruff server`, with `ide-client`.
+Registers the language server built into [Ruff](https://github.com/astral-sh/ruff), started as `ruff server`, with `ide`.
 
 ## Features
 
@@ -20,7 +20,7 @@ Registers the language server built into [Ruff](https://github.com/astral-sh/ruf
 
 To install `ide-ruff` search for it in the Install pane of the Lumine settings, or run the command `lumine --install lumine-code/ide-ruff`.
 
-Install `ide-client` first. You can provide the `ruff` binary separately with `pip install ruff`, `uv tool install ruff`, or `pipx install ruff`, or let the editor fetch it from Manage Servers.
+Install `ide` first. You can provide the `ruff` binary separately with `pip install ruff`, `uv tool install ruff`, or `pipx install ruff`, or let the editor fetch it from Manage Servers.
 
 ## Commands
 
@@ -39,7 +39,7 @@ IPython support requires the passive `ipython.source` service from language-ipyt
 
 ## Services
 
-- `ide-client`: consumed to register the Ruff adapter with the editor's language-server client.
+- `ide`: consumed to register the Ruff adapter with the editor's language-server client.
 - `ipython.source`: consumed for shared AST projection, coordinate maps and protected formatting blocks in `.ipy` documents.
 - `linter.registry`: consumed to report manual project and tree-view scans.
 - `busy-signal`: consumed to show progress while project scans run.

@@ -6,7 +6,7 @@ describe("Ruff shared IPython projection", () => {
   beforeEach(async () => {
     main = (await lumine.packages.activatePackage(path.resolve(__dirname, ".."))).mainModule;
     await lumine.packages.activatePackage("language-python");
-    adapterRegistration = main.consumeIdeClient({
+    adapterRegistration = main.consumeIde({
       registerAdapter(value) {
         adapter = value;
         return { dispose() {} };

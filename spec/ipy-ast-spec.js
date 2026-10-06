@@ -14,7 +14,7 @@ describe("Ruff adapter with the real IPython AST projection", () => {
     registration = main.consumeIpythonSource(
       lumine.packages.getActivePackage("language-ipython").mainModule.provideIPythonSource(),
     );
-    adapterRegistration = main.consumeIdeClient({
+    adapterRegistration = main.consumeIde({
       registerAdapter(value) {
         adapter = value;
         return { dispose() {} };
