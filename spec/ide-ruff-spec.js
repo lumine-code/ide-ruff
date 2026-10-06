@@ -148,8 +148,7 @@ describe("ide-ruff adapter", () => {
     expect(ruff.codeAction.fixViolation.enable).toBe(true);
     expect(ruff.format.backend).toBe("uv");
 
-    expect(adapter.getWorkspaceConfiguration("ruff").lineLength).toBe(120);
-    expect(adapter.getWorkspaceConfiguration().ruff.lineLength).toBe(120);
+    expect(adapter.getWorkspaceConfiguration).toBeUndefined();
     // The startup handshake carries the same settings, unwrapped.
     expect(adapter.getInitializationOptions().settings.lineLength).toBe(120);
     disposable.dispose();

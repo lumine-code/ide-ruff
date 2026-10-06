@@ -32,6 +32,7 @@
     "format:check": "prettier --check ."
   },
   "specPackages": [
+    "ide-client",
     "language-ipython",
     "code-format"
   ],
