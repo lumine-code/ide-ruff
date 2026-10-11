@@ -76,7 +76,6 @@ describe("ide-ruff adapter", () => {
       "ide-ruff.showSyntaxErrors",
       "ide-ruff.logLevel",
       "ide-ruff.logFile",
-      "ide-ruff.features.diagnostics",
       "ide-ruff.lint.preview",
       "ide-ruff.lint.select",
       "ide-ruff.lint.extendSelect",
@@ -151,15 +150,18 @@ describe("ide-ruff adapter", () => {
     disposable.dispose();
   });
 
-  it("keeps server linting on when any grammar-scoped diagnostics route needs it", () => {
+  it("keeps server linting and startup settings independent of diagnostic visibility", () => {
     const { adapter, disposable } = registerAdapter();
+    const startup = adapter.getInitializationOptions();
     expect(adapter.getSettings().ruff.lint.enable).toBe(true);
     lumine.config.set("ide-ruff.features.diagnostics", false);
-    expect(adapter.getSettings().ruff.lint.enable).toBe(false);
+    expect(adapter.getSettings().ruff.lint.enable).toBe(true);
+    expect(adapter.getInitializationOptions()).toEqual(startup);
     lumine.config.set("ide-ruff.features.diagnostics", true, {
       scopeSelector: ".source.python.ipy",
     });
     expect(adapter.getSettings().ruff.lint.enable).toBe(true);
+    expect(adapter.getInitializationOptions()).toEqual(startup);
     lumine.config.unset("ide-ruff.features.diagnostics", {
       scopeSelector: ".source.python.ipy",
     });
@@ -170,6 +172,7 @@ describe("ide-ruff adapter", () => {
     const { adapter, disposable } = registerAdapter();
     expect(adapter.restartKeyPaths).not.toContain("ide-ruff.features.hover");
     expect(adapter.restartKeyPaths).not.toContain("ide-ruff.features.format");
+    expect(adapter.restartKeyPaths).not.toContain("ide-ruff.features.diagnostics");
     expect(adapter.restartKeyPaths).toContain("ide-ruff.useNoqa");
     expect(adapter.restartKeyPaths).not.toContain("ide-ruff.notifyWhenMissing");
     disposable.dispose();

@@ -9,8 +9,8 @@ Registers the language server built into [Ruff](https://github.com/astral-sh/ruf
 - **Server discovery**: uses the Server Path setting, a checksum-verified copy the editor installed, or `ruff` on your PATH, in that order.
 - **Python and IPython**: serves Python and uses language-ipython's shared AST projection for `.ipy`, retaining Python under Python cell magics while hiding literal Markdown, raw and foreign-language bodies from the server.
 - **Diagnostics, fixes and policy**: reports lint and syntax findings, offers single fixes, fix-all and noqa actions, and lets the settings page select, extend, ignore and control autofix eligibility for rules.
-- **Feature switches**: diagnostics, hover, formatting, and code actions can each be turned off, which hands them to another Python server on the same file. Turning diagnostics off also stops the server computing them.
-- **Settings applied live**: Ruff reads its settings only when it starts, so changing one restarts the server for you rather than leaving the setting inert until the next reload.
+- **Feature switches**: diagnostics, hover, formatting, and code actions can each be turned off in the client; hidden diagnostics stay cached and server linting remains available for code actions.
+- **Settings applied live**: changing Ruff's startup settings restarts its server; feature switches apply immediately to the existing session.
 - **Formatting**: formats ordinary Python through the server; eligible Python-only `.ipy` documents reuse their existing server document, while other `.ipy` requests batch safe Python bodies into one temporary document in the same session.
 - **Ruff configuration**: reads the discovered `ruff.toml` or `pyproject.toml`, overriding only the settings you set, and the Configuration Preference setting says which side wins.
 - **Project sessions**: one server per project root, started lazily with the first Python editor.
