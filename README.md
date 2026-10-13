@@ -16,6 +16,8 @@ Registers the language server built into [Ruff](https://github.com/astral-sh/ruf
 - **Project sessions**: one server per project root, started lazily with the first Python editor.
 - **Project scans**: checks whole project folders or files and folders selected in the tree view, including notebooks and safely projected IPython documents, without rewriting files.
 
+![Ruff flags an undefined variable and identifies the diagnostic rule.](.github/demo.png)
+
 ## Installation
 
 To install `ide-ruff` search for it in the Install pane of the Lumine settings, or run the command `lumine --install lumine-code/ide-ruff`.

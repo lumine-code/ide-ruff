@@ -1,0 +1,16 @@
+{
+  "title": "ide-ruff",
+  "description": "Ruff flags an undefined variable and identifies the diagnostic rule.",
+  "recordedOn": "2026-10-13",
+  "sourceRevision": "043e4cd0b7a5d5e677cae388838e15778c5e8776",
+  "mode": "normal",
+  "fontSettings": "default",
+  "images": [
+    {
+      "file": "demo.png",
+      "label": "Ruff flags an undefined variable and identifies the diagnostic rule.",
+      "width": 1100,
+      "height": 490
+    }
+  ]
+}
