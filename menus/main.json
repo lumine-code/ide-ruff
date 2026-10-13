@@ -8,9 +8,13 @@
           "submenu": [
             {
               "label": "Lint Projects with Ruff",
-              "command": "ide-ruff:lint-projects"
+              "command": "ide-ruff:lint-projects",
+              "group": "project",
+              "order": 20
             }
-          ]
+          ],
+          "group": "diagnostics",
+          "order": 10
         }
       ]
     },
