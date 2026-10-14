@@ -584,6 +584,51 @@ describe("Ruff project scanner", () => {
     expect(main.busySignal).toBeNull();
   });
 
+  it("keeps fresh service clears synchronous without starting scan observers", () => {
+    const coordinator = {
+      setAllMessages: jasmine.createSpy("coordinator publish"),
+      dispose() {},
+    };
+    const service = {
+      registerAdapter: () => ({ dispose() {} }),
+      createProjectDiagnostics: jasmine.createSpy("coordinate").and.returnValue(coordinator),
+    };
+    const edge = main.consumeIde(service);
+    expect(service.createProjectDiagnostics).not.toHaveBeenCalled();
+    expect(delegate.setAllMessages).toHaveBeenCalledWith([], undefined, main.scanNotebookSnapshots);
+    main.publishScanMessages([], undefined, new Map());
+    expect(service.createProjectDiagnostics).not.toHaveBeenCalled();
+    const options = { showProjectView: true };
+    const snapshots = new Map();
+    main.publishScanMessages([], options, snapshots);
+    expect(service.createProjectDiagnostics).toHaveBeenCalledTimes(1);
+    expect(coordinator.setAllMessages).toHaveBeenCalledWith([], options, snapshots);
+    main.publishScanMessages([]);
+    expect(service.createProjectDiagnostics).toHaveBeenCalledTimes(1);
+    edge.dispose();
+  });
+
+  it("coordinates an empty notebook scan snapshot when the IDE connects", () => {
+    const snapshots = new Map([["clean.ipynb", "saved notebook"]]);
+    scanner.notebookSnapshots = snapshots;
+    main.publishScanMessages([], undefined, snapshots);
+    expect(delegate.setAllMessages).toHaveBeenCalledWith([], undefined, snapshots);
+    const coordinator = {
+      setAllMessages: jasmine.createSpy("coordinator publish"),
+      dispose: jasmine.createSpy("dispose coordinator"),
+    };
+    const service = {
+      registerAdapter: () => ({ dispose() {} }),
+      createProjectDiagnostics: jasmine.createSpy("coordinate").and.returnValue(coordinator),
+    };
+    const edge = main.consumeIde(service);
+    expect(service.createProjectDiagnostics).toHaveBeenCalledWith("ide-ruff", delegate);
+    expect(coordinator.setAllMessages).toHaveBeenCalledWith([], undefined, snapshots);
+    edge.dispose();
+    expect(coordinator.dispose).toHaveBeenCalledTimes(1);
+    expect(delegate.setAllMessages).toHaveBeenCalledWith([], undefined, snapshots);
+  });
+
   it("passes cached scans to the IDE coordinator and restores raw results on edge loss", () => {
     const messages = [{ location: { file: "closed.py" } }];
     scanner.messages = messages;
