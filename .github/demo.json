@@ -1,16 +1,96 @@
 {
   "title": "ide-ruff",
   "description": "Ruff flags an undefined variable and identifies the diagnostic rule.",
-  "recordedOn": "2026-10-13",
-  "sourceRevision": "043e4cd0b7a5d5e677cae388838e15778c5e8776",
+  "recordedOn": "2026-10-14",
+  "sourceRevision": "b7a73ecbc090ac08bfeecfe53aa07a56f6b34a5c",
+  "themeSourceRevision": "7fbd047a87ecf1367c896b19ff270cdc28d319f7",
   "mode": "normal",
   "fontSettings": "default",
+  "scenario": "demo.js",
+  "recipeHash": "89c18912a654bf88708abcb8b5ed8416dabbb430ab90b1e71e7e8a99dd36facf",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "electron": "44.7.0",
+    "chrome": "152.0.7977.130",
+    "devicePixelRatio": 1,
+    "locale": "en-GB",
+    "fontFamily": "Fira Code, Menlo, DejaVu Sans Mono, Consolas, monospace",
+    "fontSize": 14,
+    "themes": ["one-day-syntax", "one-day-ui"]
+  },
+  "viewport": { "width": 1100, "height": 490 },
+  "cornerRadius": 10,
+  "sources": {
+    "editor": {
+      "revision": "8be8f86075ad93df038610d82b3ac6d99329957d",
+      "dirty": false,
+      "workingTreeHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "package": {
+      "revision": "b7a73ecbc090ac08bfeecfe53aa07a56f6b34a5c",
+      "dirty": false,
+      "workingTreeHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "ide-ruff": {
+      "revision": "b7a73ecbc090ac08bfeecfe53aa07a56f6b34a5c",
+      "dirty": false,
+      "workingTreeHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "documentation-view": {
+      "revision": "eedd6f69e19677399ddd9617858da255bb8f189c",
+      "dirty": false,
+      "workingTreeHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "hover": {
+      "revision": "4db1205d5c41405ba1d5c0d741eeaf3399e3693f",
+      "dirty": false,
+      "workingTreeHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "ide": {
+      "revision": "812c09829d25abb79f6292280d1eb54fc80b6c82",
+      "dirty": false,
+      "workingTreeHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "language-python": {
+      "revision": "41314a0fd1445d4a74e6254e775b3582ad5a8556",
+      "dirty": true,
+      "workingTreeHash": "8c4a681064f32fb67545b40e9216d0e4629a81df0705e67521373d21e23ad089"
+    },
+    "linter": {
+      "revision": "adec0e9d64ffe64f9e041df825324efc0795601b",
+      "dirty": false,
+      "workingTreeHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "linter-panel": {
+      "revision": "52b4727794bf840757d2c6ec818329f954ecfb25",
+      "dirty": false,
+      "workingTreeHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "marker": {
+      "revision": "bb4fc8fec8c9d09fe59db9b0d70352ff33cde8f8",
+      "dirty": false,
+      "workingTreeHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "one-theme": {
+      "revision": "7fbd047a87ecf1367c896b19ff270cdc28d319f7",
+      "dirty": false,
+      "workingTreeHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "fixtures": [
+    {
+      "file": "ide-ruff/signal.py",
+      "sha256": "8f6d48aa3d4ceb3148cd95fbc7c557b19f73591a9c36ff00f35f6bb42c93349f"
+    }
+  ],
   "images": [
     {
       "file": "demo.png",
       "label": "Ruff flags an undefined variable and identifies the diagnostic rule.",
       "width": 1100,
-      "height": 490
+      "height": 490,
+      "sha256": "a30101c275e7099dcb42d3af6f2514ce79c9a2cb17d20e2b6a79a0f11f161112"
     }
   ]
 }
