@@ -34,9 +34,19 @@ describe("ide-ruff package assets", () => {
     for (const source of sources) expect(source).not.toMatch(/\b(Atom|Pulsar|atom-ide)\b/);
   });
 
-  it("keeps the README free of badges, images, and keybindings", () => {
-    expect(readme).not.toMatch(/!\[|<img|shields\.io/);
+  it("keeps the README free of badges and keybindings", () => {
+    expect(readme).not.toMatch(/shields\.io|badge\.svg/);
     expect(readme).not.toMatch(/keymap|keybinding|keystroke/i);
+  });
+
+  it("uses existing screenshots beneath Features", () => {
+    const images = [...readme.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)];
+    expect(images.length).toBeGreaterThan(0);
+    for (const image of images) {
+      expect(image.index).toBeGreaterThan(readme.indexOf("## Features"));
+      expect(image.index).toBeLessThan(readme.indexOf("## Installation"));
+      expect(fs.existsSync(path.join(root, image[1]))).toBe(true);
+    }
   });
 
   it("keeps keyword hygiene", () => {
