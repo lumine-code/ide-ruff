@@ -24,8 +24,8 @@
         {
           "label": "IDE Ruff",
           "submenu": [
-            { "label": "Lint Projects", "command": "ide-ruff:lint-projects" },
-            { "label": "Lint Selected", "command": "ide-ruff:lint-selected" }
+            { "label": "Lint Project Files", "command": "ide-ruff:lint-projects" },
+            { "label": "Lint Tree Selection", "command": "ide-ruff:lint-selected" }
           ]
         }
       ]
