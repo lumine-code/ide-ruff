@@ -558,6 +558,8 @@ describe("Ruff project scanner", () => {
     await fs.writeFile(first, "x");
     await fs.writeFile(second, "x");
     lumine.project.setPaths([other, directory]);
+    scanner = main.ensureProjectScanner();
+    expect(scanner.disposed).toBe(false);
     const service = main.consumeTreeViewSelection({
       selectedPaths: () => [first, second, first, path.join(directory, "missing")],
     });
