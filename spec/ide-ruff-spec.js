@@ -251,6 +251,38 @@ describe("ide-ruff adapter", () => {
     disposable.dispose();
   });
 
+  it("provides the IDE ownership contract for Python noqa projections and rejects stale syntax", async () => {
+    jasmine.useRealClock();
+    await lumine.packages.activatePackage("language-python");
+    const { adapter, disposable } = registerAdapter();
+    lumine.config.set("ide-ruff.useNoqa", false);
+    const editor = lumine.workspace.buildTextEditor();
+    editor.setText('value = "# noqa"\nimport os # noqa: F401\n');
+    lumine.grammars.assignGrammar(
+      editor.getBuffer(),
+      lumine.grammars.grammarForScopeName("source.python"),
+    );
+    try {
+      const projection = await adapter.getDocumentProjection(editor);
+      expect(projection.text.split("\n")[0]).toBe('value = "# noqa"');
+      expect(projection.text.split("\n")[1]).not.toContain("noqa");
+      expect(projection.ownsPosition([1, 2])).toBeTrue();
+      expect(
+        projection.ownsRange([
+          [1, 0],
+          [1, 6],
+        ]),
+      ).toBeTrue();
+      editor.insertText("# changed\n");
+      expect(projection.isCurrent()).toBeFalse();
+      expect(projection.ownsPosition([1, 2])).toBeFalse();
+      expect(projection.mapEdits([])).toBeNull();
+    } finally {
+      editor.destroy();
+      disposable.dispose();
+    }
+  });
+
   it("uses root scopes before falling back to an unclassified IPython filename", () => {
     const { adapter, disposable } = registerAdapter();
     lumine.config.set("ide-ruff.useNoqa", true);
