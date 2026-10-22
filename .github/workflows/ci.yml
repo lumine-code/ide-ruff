@@ -49,7 +49,7 @@ jobs:
     timeout-minutes: 60
     env:
       LUMINE_JASMINE_REPORTER: list
-      RUFF_VERSION: 0.16.6
+      RUFF_VERSION: 0.17.2
     steps:
       - uses: actions/checkout@v7
         with:
