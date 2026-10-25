@@ -4,6 +4,8 @@ const { Range, TextBuffer } = require("lumine");
 describe("Ruff adapter with the real IPython AST projection", () => {
   let editor, main, adapter, registration, adapterRegistration, applyFormatResult;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.useRealClock();
     await lumine.packages.activatePackage("language-ipython");
     const formatPackage = await lumine.packages.activatePackage("code-format");

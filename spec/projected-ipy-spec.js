@@ -4,6 +4,8 @@ const { Range, Point } = require("lumine");
 describe("Ruff shared IPython projection", () => {
   let main, adapter, editor, serviceRegistration, adapterRegistration;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     main = (await lumine.packages.activatePackage(path.resolve(__dirname, ".."))).mainModule;
     await lumine.packages.activatePackage("language-python");
     adapterRegistration = main.consumeIde({

@@ -50,6 +50,8 @@ describe("ide-ruff server resolution", () => {
 
 describe("ide-ruff adapter", () => {
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     // Applies the configSchema, so the defaults the adapter reads are the ones
     // the manifest declares rather than a copy of them kept here.
     main = (await lumine.packages.activatePackage(path.resolve(__dirname, ".."))).mainModule;

@@ -7,6 +7,8 @@ const { Point } = require("lumine");
 describe("Ruff project scanner", () => {
   let main, scanner, directory, delegate, registration, editor, resolverRegistration;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.useRealClock();
     main = (await lumine.packages.activatePackage(path.resolve(__dirname, ".."))).mainModule;
     directory = await fs.mkdtemp(path.join(os.tmpdir(), "ide-ruff-scan-"));
