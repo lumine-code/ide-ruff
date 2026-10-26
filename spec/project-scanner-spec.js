@@ -223,7 +223,7 @@ describe("Ruff project scanner", () => {
     );
   });
 
-  it("maps raw Unicode columns against each Python or notebook cell snapshot", () => {
+  it("maps raw Unicode columns against each Python or notebook cell snapshot", async () => {
     const source = 'text = "😀"; missing_name\n';
     const notebook = JSON.stringify({
       cells: [
@@ -232,7 +232,7 @@ describe("Ruff project scanner", () => {
       ],
     });
     const positions = { location: { row: 1, column: 13 }, end_location: { row: 1, column: 25 } };
-    const messages = scanner.rawMessages(
+    const messages = await scanner.rawMessages(
       [finding("unicode.py", positions), finding("unicode.ipynb", { ...positions, cell: 2 })],
       new Map([
         ["unicode.py", source],
@@ -283,6 +283,71 @@ describe("Ruff project scanner", () => {
       { showProjectView: true },
       scanner.notebookSnapshots,
     );
+  });
+
+  it("maps an ordinary Python file above the projection budget without a whole-file read", async () => {
+    const file = path.join(directory, "large.py");
+    const length = 8 * 1024 * 1024 + 1;
+    await fs.writeFile(file, "x".repeat(length) + "😀missing");
+    const readFile = fs.readFile.bind(fs);
+    spyOn(fs, "readFile").and.callFake((target, ...args) => {
+      if (target === file) throw new Error("whole-file read forbidden");
+      return readFile(target, ...args);
+    });
+    fakeRuff(({ args }) =>
+      args.includes("--show-files")
+        ? file
+        : JSON.stringify([
+            finding(file, {
+              location: { row: 1, column: length + 2 },
+              end_location: { row: 1, column: length + 9 },
+            }),
+          ]),
+    );
+    await scanner.runScan(scanItems());
+    expect(scanner.messages.length).toBe(1);
+    expect(scanner.messages[0].location.position).toEqual([
+      [0, length + 2],
+      [0, length + 9],
+    ]);
+  });
+
+  it("rejects oversized notebook input before Ruff runs and retains the preceding scan", async () => {
+    const file = path.join(directory, "large.ipynb");
+    const handle = await fs.open(file, "w");
+    try {
+      await handle.truncate(25 * 1024 * 1024);
+    } finally {
+      await handle.close();
+    }
+    const preceding = [{ location: { file: "old.py" } }];
+    scanner.messages = preceding;
+    const notify = spyOn(lumine.notifications, "addError");
+    const calls = fakeRuff(({ args }) => (args.includes("--show-files") ? file : "[]"));
+    await scanner.runScan(scanItems());
+    expect(calls.length).toBe(1);
+    expect(scanner.messages).toBe(preceding);
+    expect(notify.calls.mostRecent().args[1].detail).toContain("scan budget");
+    expect(delegate.setAllMessages).not.toHaveBeenCalled();
+  });
+
+  it("preflights open IPython source before calling a string-only projector", async () => {
+    editor = await lumine.workspace.open(path.join(directory, "large.ipy"));
+    const project = jasmine.createSpy("project");
+    const service = main.consumeIpythonSource({ isApplicable: () => true, project });
+    spyOn(editor.getBuffer(), "getLength").and.returnValue(600000000);
+    spyOn(editor, "getText").and.throwError("source was flattened");
+    await expectAsync(
+      scanner.scanIpython(
+        editor.getPath(),
+        "ruff",
+        [],
+        main.scanSettings(),
+        new AbortController().signal,
+      ),
+    ).toBeRejectedWithError(/scan budget/);
+    expect(project).not.toHaveBeenCalled();
+    service.dispose();
   });
 
   it("honors Ruff severities and the adapter's syntax-diagnostic switch", () => {
