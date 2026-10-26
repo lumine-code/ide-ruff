@@ -285,6 +285,62 @@ describe("ide-ruff adapter", () => {
     }
   });
 
+  it("declines unavailable Python syntax before copying source and resumes its Noqa projection", async () => {
+    jasmine.useRealClock();
+    await lumine.packages.activatePackage("language-python");
+    const { adapter, disposable } = registerAdapter();
+    lumine.config.set("ide-ruff.useNoqa", false);
+    const editor = lumine.workspace.buildTextEditor();
+    editor.setGrammar(lumine.grammars.grammarForScopeName("source.python"));
+    editor.setText("import os # noqa: F401\n");
+    await editor.whenGrammarSettled();
+    const availability = jasmine.createSpy("availability").and.returnValue({
+      available: false,
+      reason: "failure",
+    });
+    Object.defineProperty(editor, "getSyntaxAvailability", { value: availability });
+    const read = spyOn(editor, "getText").and.callThrough();
+    try {
+      expect(await adapter.getDocumentProjection(editor)).toBeNull();
+      expect(read).not.toHaveBeenCalled();
+      availability.and.returnValue({ available: true });
+      expect((await adapter.getDocumentProjection(editor)).text).not.toContain("noqa");
+    } finally {
+      editor.destroy();
+      disposable.dispose();
+    }
+  });
+
+  it("retires a Noqa projection waiting for grammar through None and immediate restoration", async () => {
+    jasmine.useRealClock();
+    await lumine.packages.activatePackage("language-python");
+    const { adapter, disposable } = registerAdapter();
+    lumine.config.set("ide-ruff.useNoqa", false);
+    const editor = lumine.workspace.buildTextEditor();
+    const grammar = lumine.grammars.grammarForScopeName("source.python");
+    editor.setGrammar(grammar);
+    editor.setText("import os # noqa: F401\n");
+    await editor.whenGrammarSettled();
+    let finish;
+    const settled = spyOn(editor, "whenGrammarSettled").and.returnValue(
+      new Promise((resolve) => (finish = resolve)),
+    );
+    const read = spyOn(editor, "getText").and.callThrough();
+    try {
+      const pending = adapter.getDocumentProjection(editor);
+      editor.setGrammar(lumine.grammars.nullGrammar);
+      editor.setGrammar(grammar);
+      finish(true);
+      expect(await pending).toBeNull();
+      expect(read).not.toHaveBeenCalled();
+      settled.and.callThrough();
+      expect((await adapter.getDocumentProjection(editor)).text).not.toContain("noqa");
+    } finally {
+      editor.destroy();
+      disposable.dispose();
+    }
+  });
+
   it("uses root scopes before falling back to an unclassified IPython filename", () => {
     const { adapter, disposable } = registerAdapter();
     lumine.config.set("ide-ruff.useNoqa", true);
