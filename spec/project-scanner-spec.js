@@ -32,6 +32,28 @@ describe("Ruff project scanner", () => {
     await fs.rm(directory, { force: true, recursive: true });
   });
 
+  it("omits a closed None association before checking source and honors a real grammar override", async () => {
+    const previous = lumine.config.get("core.customFileTypes");
+    const filePath = path.join(directory, "suspended.py");
+    await fs.writeFile(filePath, "unused = 1\n");
+    const calls = fakeRuff(({ args }) => (args.includes("--show-files") ? filePath : "[]"));
+    try {
+      lumine.config.set("core.customFileTypes", {
+        [lumine.grammars.nullGrammar.scopeName]: ["py"],
+      });
+      await scanner.runScan(scanItems());
+      expect(calls.length).toBe(1);
+      editor = await lumine.workspace.open(filePath);
+      lumine.grammars.assignGrammar(editor, lumine.grammars.grammarForScopeName("text.plain"));
+      await scanner.runScan(scanItems());
+      expect(calls.length).toBe(3);
+      expect(calls.at(-1).args).toContain(filePath);
+    } finally {
+      if (previous === undefined) lumine.config.unset("core.customFileTypes");
+      else lumine.config.set("core.customFileTypes", previous);
+    }
+  });
+
   it("uses the client's resolver for the scanner's managed executable", async () => {
     main.resolveScanServer.and.callThrough();
     const managed = { binaryPath: process.execPath, version: "test-version" };
