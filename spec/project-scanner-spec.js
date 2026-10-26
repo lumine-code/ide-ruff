@@ -529,6 +529,33 @@ describe("Ruff project scanner", () => {
     expect(scanner.controller).toBeNull();
   });
 
+  it("aborts a running scan when its file is added to the workspace already using None", async () => {
+    const filePath = path.join(directory, "file.py");
+    await fs.writeFile(filePath, "unused = 1\n");
+    let release, began;
+    const started = new Promise((resolve) => (began = resolve));
+    const waiting = new Promise((resolve) => (release = resolve));
+    const calls = fakeRuff(({ args }) => {
+      if (args.includes("--show-files")) return filePath;
+      began();
+      return waiting;
+    });
+    const pending = scanner.runScan(scanItems());
+    await started;
+    editor = lumine.workspace.buildTextEditor();
+    editor.getBuffer().setPath(filePath);
+    lumine.grammars.assignGrammar(editor, lumine.grammars.nullGrammar);
+    try {
+      lumine.workspace.getActivePane().addItem(editor);
+      expect(calls[1].options.signal.aborted).toBe(true);
+    } finally {
+      release("[]");
+      await pending;
+    }
+    expect(delegate.setAllMessages).not.toHaveBeenCalled();
+    expect(scanner.controller).toBeNull();
+  });
+
   it("reports failed processes and retains the preceding successful scan", async () => {
     scanner.messages = [{ location: { file: "old.py" } }];
     const notify = spyOn(lumine.notifications, "addError");
