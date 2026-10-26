@@ -13,18 +13,26 @@ describe("Ruff streaming scan sources", () => {
 
   it("maps code points across every chunk boundary and physical line ending", () => {
     const text = "a😀b\r\n\r𐀀z\n\ud800x\udfff\r";
-    const lines = text.split(/\r\n|\n|\r/);
+    const lines = [];
+    let start = 0;
+    for (const ending of text.matchAll(/\r\n|\r|\n/g)) {
+      lines.push({ text: text.slice(start, ending.index), start });
+      start = ending.index + ending[0].length;
+    }
+    lines.push({ text: text.slice(start), start });
     const points = [],
       expected = [];
     lines.forEach((line, row) => {
-      const characters = Array.from(line);
+      const characters = Array.from(line.text);
       for (let column = 0; column <= characters.length + 1; column++) {
         points.push({ row: row + 1, column: column + 1 });
-        if (column <= characters.length)
-          expected.push([
-            `${row + 1}:${column + 1}`,
-            [row, characters.slice(0, column).join("").length],
-          ]);
+        if (column <= characters.length) {
+          const absoluteOffset = line.start + characters.slice(0, column).join("").length;
+          const prefix = text.slice(0, absoluteOffset);
+          const physicalRow = [...prefix.matchAll(/\n/g)].length;
+          const physicalColumn = absoluteOffset - prefix.lastIndexOf("\n") - 1;
+          expected.push([`${row + 1}:${column + 1}`, [physicalRow, physicalColumn]]);
+        }
       }
     });
     points.push({ row: -1, column: 1 }, { row: 1.5, column: 2 }, { row: 1, column: Infinity });
@@ -37,6 +45,35 @@ describe("Ruff streaming scan sources", () => {
         .withContext(`chunk width ${width}`)
         .toEqual(expected);
     }
+  });
+
+  it("defers a post-CR position until CRLF or bare-CR EOF is known", () => {
+    const mapper = new source.PositionMapper([{ row: 2, column: 1 }]);
+    mapper.write("a\r");
+    expect(mapper.positions.size).toBe(0);
+    mapper.write("");
+    expect(mapper.positions.size).toBe(0);
+    mapper.write("\n");
+    expect(mapper.positions.get("2:1")).toEqual([1, 0]);
+    const bare = new source.PositionMapper([{ row: 2, column: 1 }]);
+    bare.write("a\r");
+    bare.write("", true);
+    expect(bare.positions.get("2:1")).toEqual([0, 2]);
+  });
+
+  it("keeps bare-CR logical rows on the same physical row across empty and surrogate chunks", () => {
+    const mapper = new source.PositionMapper([
+      { row: 2, column: 1 },
+      { row: 2, column: 2 },
+      { row: 3, column: 1 },
+    ]);
+    for (const chunk of ["a\r", "", "\ud83d", "\ude00", "\r", ""]) mapper.write(chunk);
+    mapper.write("", true);
+    expect([...mapper.positions]).toEqual([
+      ["2:1", [0, 2]],
+      ["2:2", [0, 4]],
+      ["3:1", [0, 5]],
+    ]);
   });
 
   it("maps a row beyond V8's string limit without retaining its contents", () => {
@@ -77,7 +114,7 @@ describe("Ruff streaming scan sources", () => {
     });
     expect([...after.positions]).toEqual([
       ["1:65537", [0, 65537]],
-      ["3:2", [2, 2]],
+      ["3:2", [1, 4]],
     ]);
     expect(after.digest).toBe(before.digest);
   });

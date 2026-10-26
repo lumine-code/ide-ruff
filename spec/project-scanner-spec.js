@@ -252,6 +252,62 @@ describe("Ruff project scanner", () => {
     expect(messages[1].location.cell).toBe(2);
   });
 
+  it("maps streamed Python and notebook CR diagnostics to physical LF buffer positions", async () => {
+    const python = path.join(directory, "mixed-cr.py");
+    const notebook = path.join(directory, "mixed-cr.ipynb");
+    // The CRLF splits at the file reader's 64KiB boundary. The following bare
+    // CR starts a Ruff logical row without starting an editor buffer row.
+    const source = "x".repeat(65535) + "\r\n#😀\rmissing_name\r\nlast\r";
+    await fs.writeFile(python, source);
+    await fs.writeFile(
+      notebook,
+      JSON.stringify({
+        cells: [{ cell_type: "code", source: [source.slice(0, 65536), source.slice(65536)] }],
+      }),
+    );
+    const positions = { location: { row: 3, column: 1 }, end_location: { row: 3, column: 13 } };
+    const eof = { location: { row: 5, column: 1 }, end_location: { row: 5, column: 1 } };
+    fakeRuff(({ args }) =>
+      args.includes("--show-files")
+        ? [python, notebook].join("\n")
+        : JSON.stringify([
+            finding(python, positions),
+            finding(python, eof),
+            finding(notebook, { ...positions, cell: 1 }),
+            finding(notebook, { ...eof, cell: 1 }),
+          ]),
+    );
+    await scanner.runScan(scanItems());
+    expect(scanner.messages.length).toBe(4);
+    for (const file of [python, notebook]) {
+      const messages = scanner.messages.filter((message) => message.location.file === file);
+      expect(messages.map((message) => message.location.position)).toEqual([
+        [
+          [1, 4],
+          [1, 16],
+        ],
+        [
+          [2, 5],
+          [2, 5],
+        ],
+      ]);
+    }
+    expect(scanner.messages.filter((message) => message.location.cell === 1).length).toBe(2);
+  });
+
+  it("maps legacy in-memory source findings after bare CR without inventing buffer rows", async () => {
+    const positions = { location: { row: 2, column: 1 }, end_location: { row: 2, column: 2 } };
+    const messages = await scanner.rawMessages(
+      [finding("bare.py", positions)],
+      new Map([["bare.py", "a\rb"]]),
+      main.scanSettings(),
+    );
+    expect(messages[0].location.position).toEqual([
+      [0, 2],
+      [0, 3],
+    ]);
+  });
+
   it("rejects notebook findings and their snapshots when the disk changes during Ruff", async () => {
     const notebook = path.join(directory, "changed.ipynb");
     const source = JSON.stringify({ cells: [{ cell_type: "code", source: ["value\n"] }] });
