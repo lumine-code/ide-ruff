@@ -62,7 +62,7 @@ test("exact official archive and original sidecar are both verified through the 
   assert.deepEqual(
     f.requests.map(({ url }) => url),
     [
-      "https://api.github.com/repos/astral-sh/ruff/releases/tags/0.17.2",
+      "https://api.github.com/repos/astral-sh/ruff/releases/tags/0.17.4",
       "https://api.github.com/repos/astral-sh/ruff/releases/assets/2",
       "https://api.github.com/repos/astral-sh/ruff/releases/assets/1",
     ],
@@ -208,7 +208,7 @@ test("explicit proxies and wrong versions fail before any network or extraction"
           assert.fail("must not request");
         },
       }),
-      /HTTPS proxy|requires 0\.17\.2/,
+      /HTTPS proxy|requires 0\.17\.4/,
     );
   assert.equal(requests, 0);
 });
