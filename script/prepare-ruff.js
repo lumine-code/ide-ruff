@@ -6,7 +6,7 @@ const path = require("node:path");
 const { createHash } = require("node:crypto");
 const { spawnSync } = require("node:child_process");
 
-const VERSION = "0.17.4";
+const VERSION = "0.17.5";
 const API = "https://api.github.com/repos/astral-sh/ruff/releases";
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
